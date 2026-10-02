@@ -1,40 +1,173 @@
-import { useEffect, useState } from 'react'
-import { CHATS, FILES, HERO_CHAT, HUBS } from '../lab/content'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  ask, chatTitle, copyLink, dismissSuggestion, exportChat, focusNode, liveOwner, openChat, pullSuggestion,
+  removeFromTray, setBranchFrom, setComposer, setFilter, suggestionFor, toggleEarlier,
+} from '../engine/actions'
+import { suggestionsFor } from '../engine/bank'
+import { EMPTY, useStore, type Msg, type TrayItem } from '../engine/store'
+import { ACTIVE, CHATS, HUBS } from '../lab/content'
 import { PEOPLE, type PersonId } from '../lab/people'
-import { AiMark, Avatar } from '../ui/Avatar'
+import { DEFAULT_TRAY, LIVE_DRAFTS, THREADS } from '../lab/threads'
+import { Avatar } from '../ui/Avatar'
 import { Icon, type IconName } from '../ui/Icons'
-import { SlipChart } from './SlipChart'
+import { Message } from './Message'
 
 interface Props {
   chatId: string
-  onClose: () => void
-  onOpenChat: (id: string) => void
 }
 
-interface Source {
-  n: number
-  icon: IconName
-  name: string
-  where: string
-  meta: string
-  mono?: boolean
-  memory?: boolean
+/** Chats without a written conversation open on their memory card. */
+function memoryCard(chatId: string): Msg[] {
+  const c = CHATS.find((x) => x.id === chatId)
+  if (!c) return []
+  const hub = HUBS.find((h) => h.id === c.hub)!
+  return [{
+    id: `card-${chatId}`, who: 'ai', time: 'memory card',
+    text: `**${PEOPLE[c.by].name}’s chat** in *${hub.label}*. The topic’s big question: ${hub.question}`,
+    sources: (c.cites ?? []).map((id) => ({ node: id, where: 'cited in this chat' })),
+    memoryNote: 'A rolling summary saved as lab memory. Ask below to add to this chat.',
+  }]
 }
 
-const SOURCES_1: Source[] = [
-  { n: 1, icon: 'paper', name: 'Sidewinding with minimal slip: Snake and robot ascent of sandy slopes', where: 'Abstract', meta: 'Paper · Marvi et al. · Science 2014' },
-  { n: 2, icon: 'labpc', name: 'trackway/slope_trials_2025-06.csv', where: 'sheet “summary”', meta: 'Lab PC · imaging rig · Kofi Mensah · 2 days ago', mono: true },
-  { n: 3, icon: 'drive', name: 'Tilting bed calibration', where: '§3 Re-levelling', meta: 'Google Drive · Noor Haddad · 14 Jun 2025' },
-]
+export function ChatPanel({ chatId }: Props) {
+  const extra = useStore((s) => s.extraChats)
+  const renamed = useStore((s) => s.renamed[chatId])
+  const dynamic = useStore((s) => s.messages[chatId])
+  const showEarlier = useStore((s) => s.showEarlier[chatId])
+  const chat = CHATS.find((c) => c.id === chatId) ?? extra.find((c) => c.id === chatId)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
-const SOURCES_2: Source[] = [
-  { n: 4, icon: 'chat', name: 'Tilting bed recalibration, June', where: '3 answers', meta: 'Lab memory · chat by Noor Haddad (alumna) · 16 Jun 2025', memory: true },
-]
+  const all = useMemo(
+    () => [...(THREADS[chatId] ?? (CHATS.some((c) => c.id === chatId) ? memoryCard(chatId) : [])), ...(dynamic ?? [])],
+    [chatId, dynamic],
+  )
+  const earlierCount = all.filter((m) => m.earlier).length
+  const shown = all.filter((m) => showEarlier || !m.earlier)
+  const last = all[all.length - 1]
+  const lastLen = last ? last.shown ?? last.text.length : 0
 
-const DRAFT = 'Can you plot slip vs slope only for runs after 14 June, and mark where the robot starts to pitch'
+  // Keep the newest message in view as it streams in.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el && dynamic?.length) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+  }, [dynamic?.length, lastLen])
 
-/** Kofi's draft appears letter by letter, like watching a teammate in Google Docs. */
-function useLiveDraft(text: string) {
+  if (!chat) return null
+  const hub = HUBS.find((h) => h.id === chat.hub)!
+  const owner = PEOPLE[chat.by]
+  const live = liveOwner(chatId)
+  const prompts = all.filter((m) => m.who !== 'ai' && !m.kind).length
+  const viewers: { id: PersonId; label: string }[] = [
+    ...ACTIVE.filter((a) => a.chat === chatId).map((a) => ({ id: a.who, label: a.doing })),
+    { id: 'you', label: 'you' },
+  ]
+  const isNew = !CHATS.some((c) => c.id === chatId)
+  const empty = isNew && !dynamic?.some((m) => !m.kind)
+  let aiIndex = -1
+
+  return (
+    <aside className="chat" aria-label={`Chat: ${renamed ?? chat.title}`} data-dropzone="chat">
+      <header className="chat__head">
+        <div className="chat__crumbs">
+          <button type="button" className="icon-btn icon-btn--sm" onClick={() => openChat(null)} aria-label="Back to the whole lab" title="Back to the whole lab (Esc)">
+            <Icon name="arrowLeft" size={15} />
+          </button>
+          <button type="button" className="crumb" onClick={() => focusNode(chat.hub, 1.6)} title="Show this topic on the brain">{hub.label}</button>
+          <span className="crumb-sep">/</span>
+          <span className={`kind kind--${chat.kind ?? 'chat'}`}>{(chat.kind ?? 'chat').toUpperCase()}</span>
+          {chat.from?.length ? (
+            <button type="button" className="crumb-from" onClick={() => openChat(chat.from![0])} title="Open the chat this came from">
+              <Icon name={chat.kind === 'merge' ? 'merge' : 'branch'} size={12} /> from {chatTitle(chat.from[0])}
+            </button>
+          ) : null}
+          <HeaderActions chatId={chatId} />
+        </div>
+        <h1 className="chat__title">{renamed ?? chat.title}</h1>
+        <div className="chat__meta">
+          <Avatar id={chat.by} size={20} />
+          <span>Started by <b>{owner.id === 'you' ? 'you' : owner.name}</b> · {isNew ? 'just now' : '2 days ago'} · {prompts} prompt{prompts === 1 ? '' : 's'}</span>
+          <span className="viewers">
+            {viewers.map((v) => (
+              <span key={v.id} className="viewer" title={`${PEOPLE[v.id].name} · ${v.label}`} style={{ ['--ring' as string]: PEOPLE[v.id].color }}>
+                <Avatar id={v.id} size={22} ring={v.id !== 'you'} />
+                {v.label === 'typing' && <i className="viewer__typing" />}
+              </span>
+            ))}
+          </span>
+        </div>
+      </header>
+
+      <div className="chat__body" ref={scrollRef}>
+        {empty ? (
+          <EmptyChat chatId={chatId} />
+        ) : (
+          <div className="thread">
+            {earlierCount > 0 && (
+              <p className="thread__earlier">
+                {earlierCount} earlier messages ·{' '}
+                <button type="button" className="link link--quiet" onClick={() => toggleEarlier(chatId)}>{showEarlier ? 'hide' : 'show'}</button>
+              </p>
+            )}
+            {shown.map((m) => {
+              const isAnswer = m.who === 'ai' && !m.kind && !m.earlier
+              if (isAnswer) aiIndex++
+              return <Message key={m.id} msg={m} chatId={chatId} index={isAnswer ? aiIndex : -1} />
+            })}
+            {live && LIVE_DRAFTS[chatId] && <LiveDraft who={live} text={LIVE_DRAFTS[chatId]} />}
+            {!isNew && !THREADS[chatId] && <TryAsking chatId={chatId} />}
+          </div>
+        )}
+      </div>
+
+      <footer className="chat__foot">
+        <Suggestion chatId={chatId} />
+        <Tray chatId={chatId} />
+        <Composer chatId={chatId} live={live} />
+      </footer>
+    </aside>
+  )
+}
+
+function HeaderActions({ chatId }: { chatId: string }) {
+  const [menu, setMenu] = useState(false)
+  return (
+    <div className="chat__actions">
+      <button type="button" className="icon-btn icon-btn--sm" aria-label="Branch from this chat" title="Branch from this chat" onClick={() => setBranchFrom(chatId, 'the latest answer')}>
+        <Icon name="branch" size={15} />
+      </button>
+      <button type="button" className="icon-btn icon-btn--sm" aria-label="Export as markdown" title="Export as markdown" onClick={() => exportChat(chatId)}>
+        <Icon name="export" size={15} />
+      </button>
+      <div className="menu-wrap">
+        <button type="button" className="icon-btn icon-btn--sm" aria-label="More" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
+          <Icon name="more" size={15} />
+        </button>
+        {menu && (
+          <>
+            <button type="button" className="scrim" aria-label="Close menu" onClick={() => setMenu(false)} />
+            <div className="popover menu" role="menu">
+              <MenuItem icon="pull" label="Copy link to this chat" onClick={() => { copyLink(chatId); setMenu(false) }} />
+              <MenuItem icon="compass" label="Show it on the brain" onClick={() => { focusNode(chatId, 2.2); setMenu(false) }} />
+              <MenuItem icon="file" label="Download memory card (.md)" onClick={() => { exportChat(chatId, true); setMenu(false) }} />
+              <MenuItem icon="branch" label="Branch from this chat" onClick={() => { setBranchFrom(chatId, 'the latest answer'); setMenu(false) }} />
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function MenuItem({ icon, label, onClick }: { icon: IconName; label: string; onClick: () => void }) {
+  return (
+    <button type="button" role="menuitem" className="menu__item" onClick={onClick}>
+      <Icon name={icon} size={14} /> {label}
+    </button>
+  )
+}
+
+/** Watching a teammate type, Google Docs style. */
+function LiveDraft({ who, text }: { who: PersonId; text: string }) {
   const [n, setN] = useState(18)
   useEffect(() => {
     let i = 18
@@ -46,252 +179,179 @@ function useLiveDraft(text: string) {
           i = 18
           hold = 0
         }
-      } else {
-        i += Math.random() < 0.15 ? 0 : 1
-      }
+      } else i += Math.random() < 0.15 ? 0 : 1
       setN(i)
     }, 85)
     return () => window.clearInterval(t)
   }, [text])
-  return text.slice(0, n)
-}
-
-export function ChatPanel({ chatId, onClose, onOpenChat }: Props) {
-  const chat = CHATS.find((c) => c.id === chatId)!
-  const hub = HUBS.find((h) => h.id === chat.hub)!
-  const owner = PEOPLE[chat.by]
-  const isHero = chatId === HERO_CHAT
-
+  const p = PEOPLE[who]
   return (
-    <aside className="chat" aria-label={`Chat: ${chat.title}`}>
-      <header className="chat__head">
-        <div className="chat__crumbs">
-          <button type="button" className="icon-btn icon-btn--sm" onClick={onClose} aria-label="Back to the whole lab">
-            <Icon name="arrowLeft" size={15} />
-          </button>
-          <span className="crumb">{hub.label}</span>
-          <span className="crumb-sep">/</span>
-          <span className={`kind kind--${chat.kind ?? 'chat'}`}>{(chat.kind ?? 'chat').toUpperCase()}</span>
-          <div className="chat__actions">
-            <button type="button" className="icon-btn icon-btn--sm" aria-label="Branch from this chat"><Icon name="branch" size={15} /></button>
-            <button type="button" className="icon-btn icon-btn--sm" aria-label="Export as markdown"><Icon name="export" size={15} /></button>
-            <button type="button" className="icon-btn icon-btn--sm" aria-label="More"><Icon name="more" size={15} /></button>
-          </div>
-        </div>
-        <h1 className="chat__title">{chat.title}</h1>
-        <div className="chat__meta">
-          <Avatar id={chat.by} size={20} />
-          <span>Started by <b>{owner.name}</b> · 2 days ago · {isHero ? 6 : 3} prompts</span>
-          {isHero && (
-            <span className="viewers">
-              <Viewer id="kofi" label="typing" />
-              <Viewer id="priya" label="viewing" />
-              <Viewer id="you" label="you" />
-            </span>
-          )}
-        </div>
-      </header>
-
-      {isHero ? <HeroThread onOpenChat={onOpenChat} /> : <OtherChat chatId={chatId} />}
-
-      <footer className="chat__foot">
-        {isHero && (
-          <div className="suggest" role="note">
-            <Avatar id="priya" size={24} />
-            <p>
-              <b>Priya</b> was also working on this: <button type="button" className="link" onClick={() => onOpenChat('c-slopelegs')}>Do more legs help on loose slopes?</button>
-            </p>
-            <button type="button" className="btn btn--sm">Pull it in</button>
-            <button type="button" className="btn btn--ghost btn--sm">Not now</button>
-          </div>
-        )}
-
-        <div className="tray" aria-label="Context for the next question">
-          <div className="tray__head">
-            <span className="eyebrow">Context for the next question</span>
-            <span className="tray__budget">
-              <span className="budget"><i style={{ width: isHero ? '41%' : '18%' }} /></span>
-              {isHero ? '9.8k' : '4.3k'} of 24k
-            </span>
-          </div>
-          <div className="tray__chips">
-            <span className="ctx ctx--locked"><Icon name="chat" size={12} />This chat</span>
-            {isHero && (
-              <>
-                <span className="ctx"><Icon name="paper" size={12} /><span className="ctx__label">Sidewinding with minimal slip</span><button type="button" aria-label="Remove"><Icon name="close" size={11} /></button></span>
-                <span className="ctx"><i className="ctx__dot" style={{ background: PEOPLE.noor.color }} /><span className="ctx__label">Tilting bed recalibration</span><button type="button" aria-label="Remove"><Icon name="close" size={11} /></button></span>
-                <span className="ctx"><Icon name="labpc" size={12} /><span className="ctx__label mono">slope_trials_2025-06.csv</span><button type="button" aria-label="Remove"><Icon name="close" size={11} /></button></span>
-              </>
-            )}
-            <span className="ctx ctx--drop"><Icon name="plus" size={12} />Drag anything from the brain</span>
-          </div>
-        </div>
-
-        <div className="composer">
-          {isHero && (
-            <div className="composer__note">
-              <Avatar id="kofi" size={18} />
-              <span><b>Kofi is working in this chat.</b> Your question will start a branch, so you won’t interrupt him.</span>
-            </div>
-          )}
-          <div className="composer__row">
-            <textarea rows={1} placeholder={isHero ? 'Ask in a branch…' : 'Ask the Lab AI about this chat…'} aria-label="Your question" />
-            <button type="button" className="btn btn--primary">
-              {isHero ? <><Icon name="branch" size={14} /> Branch &amp; ask</> : <><Icon name="send" size={14} /> Ask</>}
-            </button>
-          </div>
-          <div className="composer__filters">
-            <span className="filter">Sources: all 6</span>
-            <span className="filter">Type: any</span>
-            <span className="filter">Date: any</span>
-          </div>
-        </div>
-      </footer>
-    </aside>
-  )
-}
-
-function Viewer({ id, label }: { id: PersonId; label: string }) {
-  const p = PEOPLE[id]
-  return (
-    <span className="viewer" title={`${p.name} · ${label}`} style={{ ['--ring' as string]: p.color }}>
-      <Avatar id={id} size={22} ring={id !== 'you'} />
-      {label === 'typing' && <i className="viewer__typing" />}
-    </span>
-  )
-}
-
-function Cite({ n }: { n: number }) {
-  return <button type="button" className="cite" aria-label={`Source ${n}`}>{n}</button>
-}
-
-function SourceList({ items }: { items: Source[] }) {
-  return (
-    <ol className="sources">
-      {items.map((s) => (
-        <li key={s.n} className={`source ${s.memory ? 'source--memory' : ''}`}>
-          <span className="source__n">{s.n}</span>
-          <Icon name={s.icon} size={14} className="source__icon" />
-          <span className="source__body">
-            <span className={`source__name ${s.mono ? 'mono' : ''}`}>{s.name}</span>
-            <span className="source__meta">{s.where} · {s.meta}</span>
-          </span>
-        </li>
-      ))}
-    </ol>
-  )
-}
-
-function AnswerFoot({ files, sources }: { files: string; sources: number }) {
-  return (
-    <div className="answer__foot">
-      <span>Searched {files} files across {sources} sources</span>
-      <span className="dot-sep">·</span>
-      <button type="button" className="link link--quiet"><Icon name="eye" size={13} /> What did the AI see?</button>
-      <span className="answer__rate">
-        <button type="button" className="icon-btn icon-btn--xs" aria-label="Useful"><Icon name="thumbUp" size={13} /></button>
-        <button type="button" className="icon-btn icon-btn--xs" aria-label="Not useful"><Icon name="thumbDown" size={13} /></button>
-      </span>
+    <div className="live-draft" style={{ ['--who' as string]: p.color }} data-tour="live-draft">
+      <span className="port port--live" aria-hidden="true" />
+      <div className="msg__head"><Avatar id={who} size={22} /><b>{p.short}</b><span className="live-draft__label">is typing</span></div>
+      <p className="live-draft__text">
+        {text.slice(0, n)}
+        <span className="caret"><span className="caret__flag">{p.short}</span></span>
+      </p>
     </div>
   )
 }
 
-function HeroThread({ onOpenChat }: { onOpenChat: (id: string) => void }) {
-  const draft = useLiveDraft(DRAFT)
+function TryAsking({ chatId }: { chatId: string }) {
+  const chat = CHATS.find((c) => c.id === chatId)
+  const qs = suggestionsFor(chat?.hub ?? null)
   return (
-    <div className="chat__body">
-      <div className="thread">
-        <p className="thread__earlier">8 earlier messages · <button type="button" className="link link--quiet">show</button></p>
+    <div className="try">
+      <span className="eyebrow">Try asking</span>
+      <div className="try__list">
+        {qs.map((q) => (
+          <button key={q.id} type="button" className="try__q" onClick={() => ask(chatId, q.q)}>{q.q}</button>
+        ))}
+      </div>
+    </div>
+  )
+}
 
-        <article className="msg msg--human" style={{ ['--who' as string]: PEOPLE.kofi.color }}>
-          <span className="port" aria-hidden="true" />
-          <div className="msg__head"><Avatar id="kofi" size={22} /><b>Kofi Mensah</b><span className="msg__time">Tue 14:02</span></div>
-          <p className="msg__text">Our snake robot keeps slipping once the bed tilts past about 15°. What has the lab already learned about sidewinders on slopes?</p>
-        </article>
-
-        <article className="msg msg--ai">
-          <span className="port port--ai" aria-hidden="true" />
-          <div className="msg__head"><AiMark size={22} /><b>Lab AI</b><span className="msg__time">Tue 14:02</span></div>
-          <div className="read-from" aria-label="Where this answer came from">
-            <span>Read from</span>
-            <span className="read-from__src"><Icon name="paper" size={12} />Papers</span>
-            <span className="read-from__src"><Icon name="labpc" size={12} />Lab PC</span>
-            <span className="read-from__src"><Icon name="drive" size={12} />Drive</span>
-            <span className="read-from__src"><Icon name="github" size={12} />GitHub</span>
-            <span className="read-from__src"><Icon name="chat" size={12} />Lab memory</span>
-          </div>
-          <div className="msg__text">
-            <p>Sidewinder rattlesnakes don’t change their wave as the slope gets steeper. Instead they press <em>more of their body</em> against the sand <Cite n={1} />. When the lab’s snake robot copied that strategy, it climbed loose slopes close to the steepest angle the sand can hold <Cite n={1} />.</p>
-            <p>Your runs from last week slip sharply above 15° on the default gait <Cite n={2} />. Noor re-levelled the tilting bed on 14 June, so only compare against runs after that date <Cite n={3} />.</p>
-          </div>
-          <SlipChart />
-          <SourceList items={SOURCES_1} />
-          <AnswerFoot files="5,240" sources={6} />
-          <button type="button" className="branch-mark" onClick={() => onOpenChat('c-pitch')} style={{ ['--who' as string]: PEOPLE.priya.color }}>
-            <Icon name="branch" size={13} />
-            <span><b>Priya</b> branched from this answer: <u>Why does pitching start at 18°?</u></span>
-          </button>
-        </article>
-
-        <article className="msg msg--human" style={{ ['--who' as string]: PEOPLE.kofi.color }}>
-          <span className="port" aria-hidden="true" />
-          <div className="msg__head"><Avatar id="kofi" size={22} /><b>Kofi Mensah</b><span className="msg__time">Tue 14:05</span></div>
-          <p className="msg__text">Did anyone test the robot with the longer body contact after the recalibration?</p>
-        </article>
-
-        <article className="msg msg--ai">
-          <span className="port port--ai" aria-hidden="true" />
-          <div className="msg__head"><AiMark size={22} /><b>Lab AI</b><span className="msg__time">Tue 14:05</span></div>
-          <div className="msg__text">
-            <p>Not yet. Noor ran six robot trials after the recalibration, all on the default gait <Cite n={4} />. None used the sidewinder’s longer contact, so that comparison is still open.</p>
-          </div>
-          <SourceList items={SOURCES_2} />
-          <p className="memory-note"><Icon name="sparkle" size={13} /> From lab memory. Noor graduated in 2025, and her 41 chats still answer questions.</p>
-          <AnswerFoot files="5,240" sources={6} />
-        </article>
-
-        <div className="live-draft" style={{ ['--who' as string]: PEOPLE.kofi.color }} aria-live="off">
-          <span className="port port--live" aria-hidden="true" />
-          <div className="msg__head"><Avatar id="kofi" size={22} /><b>Kofi</b><span className="live-draft__label">is typing</span></div>
-          <p className="live-draft__text">
-            {draft}
-            <span className="caret"><span className="caret__flag">Kofi</span></span>
-          </p>
+function EmptyChat({ chatId }: { chatId: string }) {
+  const over = useStore((s) => s.drag?.over === 'chat')
+  const qs = suggestionsFor(null, 4)
+  return (
+    <div className={`empty ${over ? 'is-over' : ''}`}>
+      <div className="empty__drop">
+        <span className="empty__orbit" aria-hidden="true"><i /><i /><i /></span>
+        <h2>Drag anything from the brain into this chat</h2>
+        <p>Chats, papers, robots, files or a whole topic. Everything you drop becomes context for your first question.</p>
+      </div>
+      <div className="try">
+        <span className="eyebrow">Or just ask</span>
+        <div className="try__list">
+          {qs.map((q) => (
+            <button key={q.id} type="button" className="try__q" onClick={() => ask(chatId, q.q)}>{q.q}</button>
+          ))}
         </div>
       </div>
     </div>
   )
 }
 
-function OtherChat({ chatId }: { chatId: string }) {
-  const chat = CHATS.find((c) => c.id === chatId)!
-  const owner = PEOPLE[chat.by]
-  const cited = (chat.cites ?? []).map((id) => FILES.find((f) => f.id === id)).filter(Boolean)
+function Suggestion({ chatId }: { chatId: string }) {
+  const state = useStore((s) => s.suggest[chatId])
+  const s = suggestionFor(chatId)
+  if (!s || state === 'pulled' || state === 'dismissed') return null
+  const p = PEOPLE[s.who]
   return (
-    <div className="chat__body">
-      <div className="thread">
-        <article className="msg msg--ai">
-          <span className="port port--ai" aria-hidden="true" />
-          <div className="msg__head"><AiMark size={22} /><b>Memory card</b><span className="msg__time">rolling summary</span></div>
-          <div className="msg__text">
-            <p>{owner.short}’s chat in <b>{HUBS.find((h) => h.id === chat.hub)!.label}</b>. {cited.length ? `It draws on ${cited.length} source${cited.length > 1 ? 's' : ''} from the lab.` : 'It hasn’t cited any files yet.'}</p>
-          </div>
-          {cited.length > 0 && (
-            <ol className="sources">
-              {cited.map((f, i) => (
-                <li key={f!.id} className="source">
-                  <span className="source__n">{i + 1}</span>
-                  <Icon name={f!.kind === 'web' ? 'web' : f!.kind} size={14} className="source__icon" />
-                  <span className="source__body">
-                    <span className={`source__name ${f!.kind === 'github' || f!.kind === 'labpc' ? 'mono' : ''}`}>{f!.name}</span>
-                    <span className="source__meta">{f!.cite ?? 'Illustrative lab file'}</span>
-                  </span>
-                </li>
+    <div className="suggest" role="note" data-tour="suggest">
+      <Avatar id={s.who} size={24} />
+      <p>
+        <b>{p.short}</b> was also working on this: <button type="button" className="link" onClick={() => openChat(s.chat)}>{chatTitle(s.chat)}</button>
+      </p>
+      <button type="button" className="btn btn--sm" onClick={() => pullSuggestion(chatId)}>Pull it in</button>
+      <button type="button" className="btn btn--ghost btn--sm" onClick={() => dismissSuggestion(chatId)}>Not now</button>
+    </div>
+  )
+}
+
+const BASE_TOKENS = 4.6
+
+function Tray({ chatId }: { chatId: string }) {
+  const stored = useStore((s) => s.tray[chatId])
+  const over = useStore((s) => s.drag?.over === 'chat')
+  const dragging = useStore((s) => !!s.drag)
+  const items: TrayItem[] = stored ?? DEFAULT_TRAY[chatId] ?? EMPTY
+  const total = BASE_TOKENS + items.reduce((a, t) => a + t.tokens, 0)
+  const newest = items[items.length - 1]
+  const isFresh = (t?: TrayItem) => !!t?.fresh && Date.now() - t.fresh < 1600
+  const chipsRef = useRef<HTMLDivElement>(null)
+  // A new chip scrolls into view as it pops in.
+  useEffect(() => {
+    if (isFresh(newest)) chipsRef.current?.scrollTo({ left: chipsRef.current.scrollWidth, behavior: 'smooth' })
+  }, [newest?.ref])
+  return (
+    <div className={`tray ${over ? 'is-over' : ''} ${dragging ? 'is-dragging' : ''}`} aria-label="Context for the next question" data-tour="tray">
+      <div className="tray__head">
+        <span className="eyebrow">{over ? 'Drop to pull into this chat' : 'Context for the next question'}</span>
+        <span className="tray__budget">
+          {isFresh(newest) ? <span key={newest.fresh} className="tray__delta">+{newest.tokens.toFixed(1)}k</span> : null}
+          <span className="budget"><i style={{ width: `${Math.min(100, (total / 24) * 100)}%` }} /></span>
+          {total.toFixed(1)}k of 24k
+        </span>
+      </div>
+      <div className="tray__chips" ref={chipsRef}>
+        <span className="ctx ctx--locked"><Icon name="chat" size={12} />This chat</span>
+        {items.map((t) => (
+          <span key={t.ref} className={`ctx ${isFresh(t) ? 'is-fresh' : ''}`} title={t.label}>
+            {t.kind === 'chat' && t.by ? <i className="ctx__dot" style={{ background: PEOPLE[t.by].color }} /> : <Icon name={t.kind === 'hub' ? 'compass' : 'file'} size={12} />}
+            <span className="ctx__label">{t.label}</span>
+            <button type="button" aria-label={`Remove ${t.label}`} onClick={() => removeFromTray(chatId, t.ref)}><Icon name="close" size={11} /></button>
+          </span>
+        ))}
+        <span className="ctx ctx--drop" data-tray-slot><Icon name="plus" size={12} />{over ? 'Drop here' : 'Drag anything from the brain'}</span>
+      </div>
+    </div>
+  )
+}
+
+const FILTERS = {
+  source: ['All 6 sources', 'Papers only', 'GitHub', 'Google Drive', 'OneDrive', 'Lab PCs', 'Lab memory'],
+  type: ['Any type', 'Papers', 'Code and notebooks', 'Data and video', 'Docs and slides'],
+  date: ['Any date', 'This week', 'This month', 'Since June 2025', 'Before 2020'],
+}
+
+function Composer({ chatId, live }: { chatId: string; live: PersonId | null }) {
+  const text = useStore((s) => s.composer[chatId] ?? '')
+  const branchFrom = useStore((s) => s.branchFrom)
+  const filters = useStore((s) => s.filters)
+  const focus = useStore((s) => s.focusComposer)
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => {
+    if (focus) ref.current?.focus()
+  }, [focus])
+  const branching = !!branchFrom || !!live
+  const send = () => ask(chatId, text)
+  return (
+    <div className="composer" data-tour="composer">
+      {branchFrom ? (
+        <div className="composer__note">
+          <Icon name="branch" size={14} />
+          <span><b>Branching from {branchFrom.label}.</b> Your question starts a new chat. This one stays as it is.</span>
+          <button type="button" className="icon-btn icon-btn--xs" aria-label="Cancel branch" onClick={() => setBranchFrom(null)}><Icon name="close" size={12} /></button>
+        </div>
+      ) : live ? (
+        <div className="composer__note">
+          <Avatar id={live} size={18} />
+          <span><b>{PEOPLE[live].short} is working in this chat.</b> Your question will start a branch, so you won’t interrupt them.</span>
+        </div>
+      ) : null}
+      <div className="composer__row">
+        <textarea
+          ref={ref}
+          rows={1}
+          value={text}
+          placeholder={branching ? 'Ask in a branch…' : 'Ask the Lab AI…'}
+          aria-label="Your question"
+          onChange={(e) => setComposer(chatId, e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              send()
+            }
+          }}
+        />
+        <button type="button" className="btn btn--primary" onClick={send} disabled={!text.trim()}>
+          {branching ? <><Icon name="branch" size={14} /> Branch &amp; ask</> : <><Icon name="send" size={14} /> Ask</>}
+        </button>
+      </div>
+      <div className="composer__filters">
+        {(Object.keys(FILTERS) as (keyof typeof FILTERS)[]).map((k) => (
+          <label key={k} className="filter">
+            <span className="sr">{k === 'source' ? 'Sources' : k === 'type' ? 'File type' : 'Date range'}</span>
+            <select value={filters[k]} onChange={(e) => setFilter(k, e.target.value)}>
+              {FILTERS[k].map((o) => (
+                <option key={o}>{o}</option>
               ))}
-            </ol>
-          )}
-          <p className="memory-note"><Icon name="sparkle" size={13} /> The style frame shows one full conversation. Every chat gets its own in step 4.</p>
-        </article>
+            </select>
+          </label>
+        ))}
       </div>
     </div>
   )

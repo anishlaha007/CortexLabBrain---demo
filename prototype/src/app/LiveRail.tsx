@@ -1,33 +1,32 @@
-import { ACTIVE, CHATS, FEED, HUBS, type HubId } from '../lab/content'
+import { focusNode, openChat } from '../engine/actions'
+import { useStore } from '../engine/store'
+import { ACTIVE, CHATS, HUBS } from '../lab/content'
 import { PEOPLE } from '../lab/people'
 import { AiMark, Avatar } from '../ui/Avatar'
 
-interface Props {
-  onOpenChat: (id: string) => void
-  onFocusHub: (id: HubId) => void
-}
-
 const chatByTitle = new Map(CHATS.map((c) => [c.title, c.id]))
 
-export function LiveRail({ onOpenChat, onFocusHub }: Props) {
+export function LiveRail() {
+  const feed = useStore((s) => s.feed)
   return (
     <aside className="rail rail--left" aria-label="Live in the lab">
-      <section className="rail__section">
+      <section className="rail__section" data-tour="live">
         <h2 className="eyebrow">Live in the lab</h2>
         <ul className="feed">
-          {FEED.map((f, i) => {
-            const id = chatByTitle.get(f.target)
+          {feed.map((f) => {
+            const id = f.chat ?? chatByTitle.get(f.target)
             const colour = f.who === 'ai' ? undefined : PEOPLE[f.who].color
+            const name = f.who === 'ai' ? 'Lab AI' : f.who === 'you' ? 'You' : PEOPLE[f.who].short
             return (
-              <li key={i} className={`feed__item ${f.live ? 'is-live' : ''}`}>
+              <li key={f.id} className={`feed__item ${f.live ? 'is-live' : ''} ${f.when === 'now' && !f.live ? 'is-new' : ''}`}>
                 <span className="feed__who" style={{ ['--ring' as string]: colour }}>
                   {f.who === 'ai' ? <AiMark size={26} /> : <Avatar id={f.who} size={26} />}
                   {f.live && <i className="bubble" aria-hidden="true" />}
                 </span>
                 <p className="feed__text">
-                  <b>{f.who === 'ai' ? 'Lab AI' : PEOPLE[f.who].short}</b> {f.verb}{' '}
+                  <b>{name}</b> {f.verb}{' '}
                   {id ? (
-                    <button type="button" className="link" onClick={() => onOpenChat(id)}>{f.target}</button>
+                    <button type="button" className="link" onClick={() => openChat(id)}>{f.target}</button>
                   ) : (
                     <span className="feed__target">{f.target}</span>
                   )}
@@ -48,7 +47,7 @@ export function LiveRail({ onOpenChat, onFocusHub }: Props) {
             const here = ACTIVE.filter((a) => chats.some((c) => c.id === a.chat))
             return (
               <li key={h.id}>
-                <button type="button" className="topic" onClick={() => onFocusHub(h.id)} title={h.question}>
+                <button type="button" className="topic" onClick={() => focusNode(h.id, 1.9)} title={h.question}>
                   <span className="topic__name">{h.label}</span>
                   <span className="topic__here">
                     {here.map((a) => (

@@ -1,50 +1,59 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect } from 'react'
 import { Brain } from '../brain/Brain'
-import { buildGraph, layoutGraph } from '../brain/graph'
 import { ChatPanel } from '../chat/ChatPanel'
-import { CHATS, type HubId } from '../lab/content'
+import { closeViewer, openChat, setTourStep } from '../engine/actions'
+import { getState, setState, useStore } from '../engine/store'
+import { PEOPLE } from '../lab/people'
+import { DragLayer, Toasts } from './DragLayer'
 import { LiveRail } from './LiveRail'
 import { PeopleRail } from './PeopleRail'
 import { TopBar } from './TopBar'
-import { applyTheme, initialTheme, type Theme } from './theme'
-
-function initialChat(): string | null {
-  const id = new URLSearchParams(window.location.search).get('chat')
-  return id && CHATS.some((c) => c.id === id) ? id : null
-}
+import { Tour } from './Tour'
+import { Viewer } from './Viewer'
+import { applyTheme } from './theme'
 
 export function App() {
-  const graph = useMemo(() => buildGraph(), [])
-  const sim = useMemo(() => layoutGraph(graph), [graph])
-  const [theme, setTheme] = useState<Theme>(initialTheme)
-  const [openChat, setOpenChat] = useState<string | null>(initialChat)
-  const [focusHub, setFocusHub] = useState<{ id: HubId; n: number } | null>(null)
+  const theme = useStore((s) => s.theme)
+  const openChat_ = useStore((s) => s.openChat)
 
   useEffect(() => applyTheme(theme), [theme])
 
+  // Person colours as CSS variables, for toasts and anything styled by who did it.
+  useEffect(() => {
+    const root = document.documentElement
+    Object.values(PEOPLE).forEach((p) => root.style.setProperty(`--p-${p.id}`, p.color))
+  }, [])
+
+  // Esc backs out one layer at a time: tour, panel, drag, then the chat.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpenChat(null)
+      if (e.key !== 'Escape') return
+      const s = getState()
+      if (s.tour !== null) setTourStep(null)
+      else if (s.viewer) closeViewer()
+      else if (s.drag) setState({ drag: null })
+      else if (s.openChat) openChat(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const onOpenChat = useCallback((id: string) => setOpenChat(id), [])
-  const onFocusHub = useCallback((id: HubId) => setFocusHub((f) => ({ id, n: (f?.n ?? 0) + 1 })), [])
-
   return (
-    <div className={`app ${openChat ? 'app--split' : ''}`}>
-      <TopBar theme={theme} onTheme={setTheme} split={!!openChat} onHome={() => setOpenChat(null)} />
+    <div className={`app ${openChat_ ? 'app--split' : ''}`}>
+      <TopBar />
       <main className="stage">
-        <div className="stage__left" aria-hidden={!!openChat}>
-          <LiveRail onOpenChat={onOpenChat} onFocusHub={onFocusHub} />
+        <div className="stage__left" aria-hidden={!!openChat_}>
+          <LiveRail />
         </div>
-        <Brain graph={graph} sim={sim} theme={theme} openChat={openChat} onOpenChat={onOpenChat} focusHub={focusHub} />
+        <Brain theme={theme} />
         <div className="stage__right">
-          {openChat ? <ChatPanel key={openChat} chatId={openChat} onClose={() => setOpenChat(null)} onOpenChat={onOpenChat} /> : <PeopleRail />}
+          {openChat_ ? <ChatPanel key={openChat_} chatId={openChat_} /> : <PeopleRail />}
         </div>
       </main>
+      <Viewer />
+      <DragLayer />
+      <Toasts />
+      <Tour />
     </div>
   )
 }

@@ -78,7 +78,7 @@ export const PEOPLE: Record<PersonId, Person> = {
   },
   you: {
     id: 'you', name: 'You', short: 'You', initials: 'YO', role: 'Guest',
-    focus: '', color: '#2B2B2B', onColor: '#F3EDE2', presence: 'live',
+    focus: '', color: '#E6D9C6', onColor: '#2B2B2B', presence: 'live', status: 'Exploring the brain',
   },
 }
 
