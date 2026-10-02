@@ -1,0 +1,118 @@
+/*
+ * Cortex design tokens. Three themes share one set of names:
+ *   light  "Oatmeal": paper UI, the brain on an espresso slate
+ *   dark   "Ink":     ink UI with cocoa and taupe for warmth
+ *   mocha  "Mocha":   the whole brown palette
+ * Colour only ever means a person (see --p-* in people.ts). Everything here is neutral.
+ */
+
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f3ede2;
+  --surface: #f9f6f0;
+  --surface-2: #efe8dc;
+  --chip: #e6dccd;
+  --chip-hover: #ddd1bf;
+  --line: #d8d1c7;
+  --line-strong: #c3b8a9;
+  --text: #2b2b2b;
+  --text-2: #6e473b;
+  --text-3: #85776b;
+  --accent: #a78d78;
+  --accent-strong: #6e473b;
+  --select: rgba(167, 141, 120, 0.22);
+  --primary: #2b2b2b;
+  --primary-text: #f3ede2;
+  --shadow: 0 1px 0 rgba(41, 28, 14, 0.04), 0 8px 28px -12px rgba(41, 28, 14, 0.22);
+  --shadow-pop: 0 2px 0 rgba(41, 28, 14, 0.04), 0 22px 48px -18px rgba(41, 28, 14, 0.38);
+
+  /* The brain slate */
+  --slate: #291c0e;
+  --slate-2: #352617;
+  --slate-3: #45321f;
+  --slate-text: #e1d4c2;
+  --slate-text-2: rgba(225, 212, 194, 0.62);
+  --slate-edge: rgba(225, 212, 194, 0.15);
+  --slate-file: rgba(190, 181, 169, 0.55);
+  --slate-hub: #a78d78;
+  --grain-opacity: 0.05;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #1d1d1c;
+  --surface: #262625;
+  --surface-2: #222221;
+  --chip: #31302e;
+  --chip-hover: #3b3936;
+  --line: #353331;
+  --line-strong: #4a4744;
+  --text: #f3ede2;
+  --text-2: #beb5a9;
+  --text-3: #8e867b;
+  --accent: #a78d78;
+  --accent-strong: #c9b29d;
+  --select: rgba(110, 71, 59, 0.42);
+  --primary: #f3ede2;
+  --primary-text: #2b2b2b;
+  --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 30px -12px rgba(0, 0, 0, 0.6);
+  --shadow-pop: 0 2px 0 rgba(0, 0, 0, 0.3), 0 24px 52px -18px rgba(0, 0, 0, 0.75);
+
+  --slate: #141413;
+  --slate-2: #22211f;
+  --slate-3: #2f2d2a;
+  --slate-text: #e1d4c2;
+  --slate-text-2: rgba(225, 212, 194, 0.58);
+  --slate-edge: rgba(225, 212, 194, 0.13);
+  --slate-file: rgba(190, 181, 169, 0.45);
+  --slate-hub: #a78d78;
+  --grain-opacity: 0.035;
+}
+
+[data-theme='mocha'] {
+  color-scheme: dark;
+  --bg: #291c0e;
+  --surface: #352617;
+  --surface-2: #2f2113;
+  --chip: #46321f;
+  --chip-hover: #553d27;
+  --line: #48341f;
+  --line-strong: #6e473b;
+  --text: #e1d4c2;
+  --text-2: #beb5a9;
+  --text-3: #a78d78;
+  --accent: #a78d78;
+  --accent-strong: #d2bca6;
+  --select: rgba(167, 141, 120, 0.24);
+  --primary: #e1d4c2;
+  --primary-text: #291c0e;
+  --shadow: 0 1px 0 rgba(0, 0, 0, 0.25), 0 10px 30px -12px rgba(10, 5, 0, 0.7);
+  --shadow-pop: 0 2px 0 rgba(0, 0, 0, 0.25), 0 24px 52px -18px rgba(10, 5, 0, 0.8);
+
+  --slate: #1a1108;
+  --slate-2: #2a1d10;
+  --slate-3: #3a2817;
+  --slate-text: #e1d4c2;
+  --slate-text-2: rgba(225, 212, 194, 0.6);
+  --slate-edge: rgba(225, 212, 194, 0.14);
+  --slate-file: rgba(190, 181, 169, 0.45);
+  --slate-hub: #a78d78;
+  --grain-opacity: 0.045;
+}
+
+:root {
+  --font-ui: 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-slate: 32px;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-fast: 180ms;
+  --t-med: 280ms;
+  --pulse: 1.1s;
+}

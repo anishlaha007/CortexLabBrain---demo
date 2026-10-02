@@ -1,7 +1,7 @@
 # Cortex Prototype Plan
 
 > A clickable, self-running prototype of Cortex to put in front of researchers, PIs and investors, so we get feedback before building the real thing.
-> Version 0.2 · 2 Oct 2026 · Status: decisions from review 1 recorded, waiting on the lab choice (§5). Nothing built yet.
+> Version 0.3 · 2 Oct 2026 · Status: lab confirmed (the CRAB Lab, with fictional teammates). Steps 0 and 1 are done: see [`prototype/`](prototype/).
 > Built from: [`SPEC.md`](SPEC.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), the UI vision board, the "Oatmeal & Ink" and brown palette cards, and the earlier `lab-brain-demo` prototype and design canvas.
 
 ---
@@ -24,7 +24,7 @@ This is a web prototype that looks and behaves like the finished Cortex but has 
 | # | Question | Decision |
 |---|----------|----------|
 | 1 | Look | **Light and dark modes with a toggle, plus a third brown "Mocha" theme.** The browns also add warm contrast inside the other two. **Nodes carry people's colours**, and the same colours are used everywhere (avatars, cursors, carets, rings), as in Figma or Google Docs. |
-| 2 | Lab | **One lab**, a well-known Georgia Tech lab that anyone understands with no context, **built from everything it has made public**. Recommendation in §5. **Waiting on your confirmation.** |
+| 2 | Lab | **Georgia Tech's CRAB Lab** (Prof. Dan Goldman: snakes, sand, ants and robots), **built from everything it has made public**, with **fictional teammates**. Details in §5 and [`prototype/LAB-INVENTORY.md`](prototype/LAB-INVENTORY.md). |
 | 3 | Audience | **You present it for now.** A **tutorial** walks through every feature. Feedback collection comes later. |
 | 4 | Typed questions | **A question bank plus an honest "not found".** The bank is as varied as possible (§6): new ideas with suggested context, new members finding their way, and much more. |
 | 5 | Demo video | **Later.** The storyboard and demo engine stay in this plan (§8) for when you're ready. |
@@ -199,93 +199,86 @@ Two browser windows on one laptop stay in sync for real. Be one person in each w
 
 ---
 
-## 5. The lab (waiting on your confirmation)
+## 5. The lab: the CRAB Lab's public work, with a fictional team
 
-### 5.1 Recommendation: Hu Lab for Biolocomotion (Prof. David Hu, Georgia Tech)
-**Why this lab:**
-- **Anyone gets it in one sentence.** It studies how animals move and stay dry: why wombat poop is cube-shaped, how dogs shake dry, how mosquitoes survive being hit by raindrops, how fire ants build rafts, and how elephants use their trunks.
-- **It's genuinely well known.** It has won two Ig Nobel Prizes (2015 for urination time, 2019 for wombat poop) and has a popular book and lots of press.
-- **Many research topics run at once.** That's what makes the brain look rich, with dozens of animals and questions at the same time.
-- **Its work mixes every file type Cortex reads:** papers, high-speed video, experiment data, analysis code, CAD for robots and devices, slides and talks. That makes "it reads everything" easy to show.
+**Lab:** Georgia Tech's **CRAB Lab** (Complex Rheology And Biomechanics, Prof. Daniel I. Goldman, School of Physics). It studies how animals and robots move through sand, mud and clutter, using robots as physical models. That covers sidewinder rattlesnakes climbing dunes, lizards that swim through sand, fire ants digging tunnels without traffic jams, centipede robots, and "smarticles" that team up into one robot. Anyone gets it, and the robots are very visual.
 
-**Topics from its public work** (each one becomes a topic hub):
-- Wombat cube-shaped poop
-- Urination time (the "law of urination")
-- Wet-dog shake
-- Mosquitoes in rain
-- Insects walking on water
-- Eyelashes and eye drying
-- Fire ant rafts
-- Cat tongues
-- Elephant trunks (wrinkles, folds, suction)
-- Snake locomotion
-- Shark-skin anti-fouling surfaces
-- Cockroach-inspired drones
-- Hairy surfaces ("fuzzy fluid dynamics")
-- Recent talks on earwax and bird baths
+**On screen:**
+- The workspace is called **Robophysics Lab**.
+- A credit line reads: *"Research from the public work of Georgia Tech's CRAB Lab (Prof. Dan Goldman). People and chats are fictional. Not affiliated."*
 
-**What goes into the brain:**
-- every public paper, as an entry with its real title, authors, year, journal, abstract-level summary and figure descriptions
-- public videos and talks, and the book
-- press coverage
-- public theses
-- the lab website's pages
+**What goes into the brain** (the full list with sources is in [`prototype/LAB-INVENTORY.md`](prototype/LAB-INVENTORY.md)):
+- **11 topic hubs** plus the lab's centre:
+  - swimming in sand
+  - snakes on sand dunes
+  - snakes through obstacles
+  - robots that wiggle
+  - the maths of wiggling
+  - many legs
+  - fire ant tunnels
+  - robots made of robots
+  - legs on soft ground
+  - first steps on land
+  - rovers on other planets
+- **15 real papers**, 2009–2024 (*Science*, *PNAS*, *Science Robotics*, *Rep. Prog. Phys.*), each checked against a public source.
+- **12 robots and rigs** from public coverage, plus press, public theses, and the Ground Control Robotics spin-out.
+- **Illustrative everyday files** (code, raw video, protocols, slides, drafts), marked as illustrative.
 
-The everyday files a lab would also have, like protocols, analysis scripts, raw data and meeting notes, will be written to look real and **marked as illustrative**. I'll check every real title and date against a source before it goes in. A **Credits** page will list every public source with a link.
+**The team** (fictional, and checked against the public author lists so no name matches a real lab member):
 
-### 5.2 Alternatives if you'd rather
-| Lab | One-line pitch | Trade-off |
-|-----|----------------|-----------|
-| **CRAB Lab** (Prof. Dan Goldman, Physics) | Snakes, lizards and robots that move through sand. Centipede robots for rubble rescue | Very visual, and robots appeal to investors. A little more physics-heavy to explain |
-| **Space Systems Design Lab** (Prof. Glenn Lightsey, Aerospace) | Students building tiny satellites, like GT-1 and the propulsion system for NASA's Lunar Flashlight | Easy "rocket science" story, but fewer separate topics running at once |
+| Person | Role | Works on |
+|--------|------|----------|
+| Prof. Elena Ruiz | PI | Everything |
+| Dr. Kofi Mensah | Postdoc | Snakes and wiggling robots |
+| Priya Raman | PhD | Many legs |
+| Jonah Kim | PhD | Fire ants |
+| Mei Tanaka | PhD | Swimming in sand |
+| Lucas Ferreira | MS | Rovers |
+| Ava Okonkwo | Undergrad | Smarticles |
+| Sam Whitfield | Research engineer | Rigs and fabrication |
+| Noor Haddad | Alumna, 2025 | Her chats still answer questions |
 
-### 5.3 People and names (your call)
-The real lab's public research is fine to use, with credit. Putting **real people's names on made-up chats** is different: it puts words in their mouths, and an investor could read it as "this lab uses Cortex". So:
-- **Default:**
-  - The lab's real public research goes in the brain.
-  - Real paper authors are cited exactly as published.
-  - The **chatting teammates are fictional**, and the lab shows as "built from the public work of the Hu Lab, Georgia Tech. Not affiliated."
-- **With the PI's permission:** switch to the real lab name and team in the setup panel. Asking could double as your first pilot conversation.
+Real authors appear only in citations, exactly as published.
 
 ---
 
 ## 6. The question bank (as varied as possible)
 Each question has a scripted answer with citations. Some also carry a chart, a suggested pull, or a follow-up thread. Anything typed that isn't in the bank gets an honest "I couldn't find this in the lab's files", plus the 3 closest files (ASK-2).
 
-The examples below assume the recommended lab.
+Examples use the CRAB Lab demo.
 
 | Kind | Example |
 |------|---------|
-| **Find a file** | "Where's the high-speed footage of the dog shake?" |
-| **Ask with citations** | "What did we find about how long animals take to pee?" |
-| **Follow-up** | "…and does that hold for the smallest animals?" |
-| **Compare across topics** | "How is the cat-tongue work similar to the eyelash work?" |
-| **Explain a figure** | "What is this plot of trunk suction actually showing?" |
-| **Methods how-to** | "How do we set up the high-speed camera for small insects?" |
-| **Reproduce** | "Which script made figure 3 in the wombat paper, and with what settings?" |
+| **Find a file** | "Where's the high-speed video of the sidewinder trials?" |
+| **Ask with citations** | "What did the lab learn about sidewinders on sandy slopes?" |
+| **Follow-up** | "…and did the robot manage it too?" |
+| **Compare across topics** | "How is the fire-ant clog result like the smarticle ring?" |
+| **Explain a figure** | "What is this slip-vs-angle plot actually showing?" |
+| **Methods how-to** | "How do we calibrate the tilting sand bed?" |
+| **Reproduce** | "Which notebook made Figure 3 in the snake diffraction paper, and with what settings?" |
 | **Who knows?** | "Who in the lab has worked with fire ants?" |
 | **What changed?** | "What's new in the lab this week?" |
 | **New member** | "I just joined. What does this lab work on, and where should I start?" Answered with a map tour, a reading list and the people to talk to |
-| **New member, deeper** | "Explain the elephant trunk project like I'm new to biomechanics" |
-| **Pivot to a new idea** | A fresh chat: "Could fire-ant rafts inspire self-assembling rescue robots?" Cortex starts the idea, then suggests pulling in the fire-ant chat and the cockroach-drone chat as context |
-| **Connect the dots** | "Has anything we learned about fur help with the anti-fouling surface work?" |
-| **Spot disagreements** | "Do any chats disagree about how trunks generate suction?" |
-| **Draft writing** | "Draft an abstract paragraph from our trunk results, with citations" |
-| **Plan the next step** | "What haven't we tested yet on eyelashes?" |
-| **Meeting prep** | "Summarise everything on wombats this month for Friday's group meeting" |
+| **New member, deeper** | "Explain 'geometric phase' like I'm new to physics" |
+| **Pivot to a new idea** | A fresh chat: "Could a centipede robot weed under blueberry bushes?" Cortex starts the idea, then suggests pulling in the many-legs chats and the rubble-course chat as context |
+| **Connect the dots** | "Does anything from the sandfish work help the rover get unstuck?" |
+| **Spot disagreements** | "Do any chats disagree about why the snake robot pitches?" |
+| **Draft writing** | "Draft a grant paragraph on spatial redundancy, with citations" |
+| **Plan the next step** | "What haven't we tested yet on the snake robot?" |
+| **Meeting prep** | "Summarise everything on fire ants this month for Friday's group meeting" |
 | **Lab memory** | A reworded version of a question answered weeks ago cites the old chat |
-| **Alumni knowledge** | "How did the student who graduated last year calibrate the rain chamber?" |
-| **Protocols** | "What's the handling protocol for the ant colonies?" |
-| **General background** | "What's surface tension?" Answered, but clearly labelled as general background, not from the lab's files |
+| **Alumni knowledge** | "How did Noor set up the sidewinding trackway?" |
+| **Protocols** | "What's the care protocol for the ant colonies?" |
+| **General background** | "What's a granular medium?" Answered, but clearly labelled as general background, not from the lab's files |
 | **Not found** | "What's the lab's budget for next year?" → not found, with the closest files |
-| **Outside Cortex's reach** | "Is the high-speed camera free on Thursday?" → explains that calendars aren't connected yet |
+| **Outside Cortex's reach** | "Is the X-ray rig free on Thursday?" → explains that calendars aren't connected yet |
 
 The target is about 60 questions in the bank, with suggested questions always on screen so nobody has to guess.
 
 ---
 
 ## 7. Multiplayer flows in the tutorial and explore mode
-The flows in §4 are scripted around the lab's real topics. For example, one teammate's chat on trunk suction gets branched by another, who later merges back a finding about skin folds. The ambient simulation uses the same question bank, so even background activity reads as real research.
+The flows in §4 are scripted around the lab's real topics. For example, Priya branches from Kofi's answer about the slipping snake robot to ask why it pitches at 18°, and later Kofi merges her finding back into his chat. The ambient simulation uses the same question bank, so even background activity reads as real research.
 
 ---
 
@@ -339,7 +332,7 @@ The flows in §4 are scripted around the lab's real topics. For example, one tea
   - Vite + React + TypeScript
   - Zustand for state and Framer Motion for UI animation
   - **d3-force + Canvas 2D** for the brain, with a DOM layer on top for labels, cursors and cards
-  - Tailwind, with the three themes as CSS variables
+  - plain CSS, with the three themes as CSS variables (no Tailwind: fewer moving parts)
   - fonts bundled with the app
 - **Event-driven world:** every change is an event, named like the real live API in SPEC §10 (`chat.created`, `message.delta`, `presence.update`, `typing`, `edge.created`…). Your clicks, the ambient simulation and the tutorial all emit the same events. Later, the real frontend can reuse components and swap the simulator for the WebSocket.
 - **Data:** the lab is one typed data file holding topics, sources, files, people, chats, the question bank and the tutorial script, plus a credits list of public sources.
@@ -371,8 +364,8 @@ Each step ends with a preview link for you to react to.
 
 | Step | What | You review |
 |------|------|------------|
-| 0 | **You confirm the lab and the names approach.** I gather its public work into a content inventory with links | The inventory: anything missing or off-limits? |
-| 1 | **Style frame:** home and chat in all three themes, with people's colours on the nodes | Look and feel, themes, colours |
+| 0 ✅ | **Lab confirmed.** Its public work is gathered into [`prototype/LAB-INVENTORY.md`](prototype/LAB-INVENTORY.md) | The inventory: anything missing or off-limits? |
+| 1 ✅ | **Style frame:** home and chat in all three themes, with people's colours on the nodes. Built as the real app's foundation, so nothing is thrown away | Look and feel, themes, colours |
 | 2 | Lab data and the world engine | Topics, cast, chats, files |
 | 3 | **Brain:** graph, zoom levels, hover, search, presence pulses, people and live rails | The home screen |
 | 4 | **Chat and split view:** answers, citations, source viewer, tray, drag to pull, suggestions, manifest, the question bank | Asking questions |
@@ -400,5 +393,5 @@ Each step ends with a preview link for you to react to.
 ---
 
 ## 15. Open questions
-1. **Lab:** the Hu Lab (recommended), the CRAB Lab, the Space Systems Design Lab, or another you have in mind?
-2. **Names:** fictional teammates with the real lab's research (the default), or are you planning to ask the lab for permission to use real names?
+1. **Style frame sign-off:** do the look, the three themes and the people's colours work? Anything to change before step 2?
+2. **Inventory:** is there anything in [`prototype/LAB-INVENTORY.md`](prototype/LAB-INVENTORY.md) you'd add, or rather leave out?
