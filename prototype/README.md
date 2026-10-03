@@ -11,7 +11,7 @@ A clickable prototype of Cortex for getting feedback from researchers, PIs and i
 | How | When |
 |-----|------|
 | **[`release/cortex-prototype.html`](release/cortex-prototype.html)** | Download and double-click. Works offline, no install. Best for meetings |
-| GitHub Pages | After merging to `main` and turning on Pages (Settings → Pages → Source: GitHub Actions) |
+| **[https://anishlaha007.github.io/CortexLabBrain---demo/](https://anishlaha007.github.io/CortexLabBrain---demo/)** | Share a link. Rebuilt and redeployed on every push to `main` that touches `prototype/`. One-time setup: Settings → Pages → Source: **GitHub Actions** |
 | `npm install && npm run dev` | Working on it |
 
 **Useful links and keys**

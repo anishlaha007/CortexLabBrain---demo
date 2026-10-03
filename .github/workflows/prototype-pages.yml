@@ -1,5 +1,6 @@
-# Builds the Cortex prototype and publishes it with GitHub Pages.
-# One-time setup: repo Settings → Pages → Source: "GitHub Actions".
+# Builds the Cortex prototype and publishes it with GitHub Pages at https://anishlaha007.github.io/CortexLabBrain---demo/
+# One-time setup: repo Settings → Pages → Source: "GitHub Actions". Then every push to main
+# that touches prototype/ redeploys, and Actions → "Prototype on GitHub Pages" → Run workflow redeploys by hand.
 name: Prototype on GitHub Pages
 
 on:
