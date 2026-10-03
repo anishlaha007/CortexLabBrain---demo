@@ -24,14 +24,14 @@ export function App() {
     Object.values(PEOPLE).forEach((p) => root.style.setProperty(`--p-${p.id}`, p.color))
   }, [])
 
-  // Esc backs out one layer at a time: tour, panel, drag, then the chat.
+  // Esc backs out one layer at a time: an open panel, a drag, the tour, then the chat.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       const s = getState()
-      if (s.tour !== null) setTourStep(null)
-      else if (s.viewer) closeViewer()
+      if (s.viewer) closeViewer()
       else if (s.drag) setState({ drag: null })
+      else if (s.tour !== null) setTourStep(null)
       else if (s.openChat) openChat(null)
     }
     window.addEventListener('keydown', onKey)

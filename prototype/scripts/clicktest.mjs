@@ -27,6 +27,16 @@ const expectCount = async (sel, n) => {
 }
 const nodeAt = (id) => page.evaluate((i) => window.__cortex.screenOf(i), id)
 
+/** The first of these nodes that's actually visible on the brain right now. */
+async function visibleNode(ids) {
+  const box = await page.locator('.brain__canvas').boundingBox()
+  for (const id of ids) {
+    const p = await nodeAt(id)
+    if (p && p.x > box.x + 40 && p.x < box.x + box.width - 40 && p.y > box.y + 70 && p.y < box.y + box.height - 70) return id
+  }
+  throw new Error('none of ' + ids.join(', ') + ' on screen')
+}
+
 async function dragNodeTo(id, target) {
   const a = await nodeAt(id)
   if (!a) throw new Error(`node ${id} not on screen`)
@@ -148,11 +158,14 @@ await check('Lineage layout and back', async () => {
 })
 
 await check('Drag a node out of the brain onto People: starts a new chat with it', async () => {
-  await dragNodeTo('c-traffic', '.rail--right')
-  await wait(200)
-  await expectVisible('.newchat-drop.is-over')
-  await shot('drag-to-new-chat')
-  await page.mouse.up()
+  try {
+    await dragNodeTo(await visibleNode(['c-traffic', 'c-pairs', 'c-drift', 'c-rft']), '.rail--right')
+    await wait(200)
+    await expectVisible('.newchat-drop.is-over')
+    await shot('drag-to-new-chat')
+  } finally {
+    await page.mouse.up()
+  }
   await expectVisible('.chat', 3000)
   await wait(1200)
   await expectCount('.tray .ctx:not(.ctx--locked):not(.ctx--drop)', 1)
@@ -164,17 +177,25 @@ await check('+ New chat, then drag two things in (population animation)', async 
   await page.getByRole('button', { name: 'New chat', exact: true }).click()
   await expectVisible('.empty')
   await wait(1300)
-  await dragNodeTo('p-sidewind', '.chat')
-  await wait(150)
-  await expectVisible('.tray.is-over')
-  await shot('drag-tether')
-  await page.mouse.up()
+  const first = await visibleNode(['p-review', 'f-onboard', 'c-onboard', 'c-grant', 'c-review', 'r-bed'])
+  try {
+    await dragNodeTo(first, '.chat')
+    await wait(150)
+    await expectVisible('.tray.is-over')
+    await shot('drag-tether')
+  } finally {
+    await page.mouse.up()
+  }
   await wait(260)
   await shot('drag-flight')
   await wait(900)
   await shot('drag-landed')
-  await dragNodeTo('c-contact', '.chat')
-  await page.mouse.up()
+  const second = await visibleNode(['c-agenda', 'c-safety', 'f-agenda', 'f-safety', 'c-grant', 'c-review', 'r-bed'].filter((x) => x !== first))
+  try {
+    await dragNodeTo(second, '.chat')
+  } finally {
+    await page.mouse.up()
+  }
   await wait(1300)
   await expectCount('.tray .ctx:not(.ctx--locked):not(.ctx--drop)', 2)
   await expectCount('.note--pull', 2)

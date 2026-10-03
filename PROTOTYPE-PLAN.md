@@ -1,7 +1,7 @@
 # Cortex Prototype Plan
 
 > A clickable, self-running prototype of Cortex to put in front of researchers, PIs and investors, so we get feedback before building the real thing.
-> Version 0.3 · 2 Oct 2026 · Status: lab confirmed (the CRAB Lab, with fictional teammates). Steps 0 and 1 are done: see [`prototype/`](prototype/).
+> Version 0.4 · 3 Oct 2026 · Status: steps 0–1 done, and much of steps 3–5 and 7 pulled forward. Every button works, including drag-into-chat, branch and merge, and the tour. See [`prototype/`](prototype/).
 > Built from: [`SPEC.md`](SPEC.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), the UI vision board, the "Oatmeal & Ink" and brown palette cards, and the earlier `lab-brain-demo` prototype and design canvas.
 
 ---
@@ -367,11 +367,11 @@ Each step ends with a preview link for you to react to.
 | 0 ✅ | **Lab confirmed.** Its public work is gathered into [`prototype/LAB-INVENTORY.md`](prototype/LAB-INVENTORY.md) | The inventory: anything missing or off-limits? |
 | 1 ✅ | **Style frame:** home and chat in all three themes, with people's colours on the nodes. Built as the real app's foundation, so nothing is thrown away | Look and feel, themes, colours |
 | 2 | Lab data and the world engine | Topics, cast, chats, files |
-| 3 | **Brain:** graph, zoom levels, hover, search, presence pulses, people and live rails | The home screen |
-| 4 | **Chat and split view:** answers, citations, source viewer, tray, drag to pull, suggestions, manifest, the question bank | Asking questions |
-| 5 | **Multiplayer:** cursors, live drafts, branch to collaborate, notifications, merge back, ambient life | The hero feature |
+| 3 ◐ | **Brain:** graph, zoom levels, hover, search, presence pulses, people and live rails. *Done:* search glow, Lineage, follow mode, drag-out. *Still to come:* zooming into a chat's prompt chain | The home screen |
+| 4 ◐ | **Chat and split view:** answers, citations, source viewer, tray, drag to pull, suggestions, manifest, the question bank. *Done:* all of these, with a 20-question bank. *Still to come:* the full ~60 questions and full conversations for more chats | Asking questions |
+| 5 ◐ | **Multiplayer:** cursors, live drafts, branch to collaborate, notifications, merge back, ambient life. *Done:* everything except ambient life, where teammates act on their own | The hero feature |
 | 6 | Sources, Lab pulse, memory and alumni moments | The supporting story |
-| 7 | **Tutorial**, presenter setup, theme toggle polish | Presenting it |
+| 7 ◐ | **Tutorial**, presenter setup, theme toggle polish. *Done:* the 13-step tour with “Show me” on each step, and the themes. *Still to come:* presenter setup | Presenting it |
 | 8 | Polish, performance, offline build, deploy | Final |
 | Later | Auto demo + recording, feedback mode, two-window sync | When you're ready |
 

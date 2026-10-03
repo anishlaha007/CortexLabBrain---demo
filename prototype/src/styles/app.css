@@ -885,8 +885,9 @@ button {
 }
 
 .seg--slate {
-  background: rgba(225, 212, 194, 0.07);
-  box-shadow: inset 0 0 0 1px rgba(225, 212, 194, 0.08);
+  background: color-mix(in srgb, var(--slate-2) 92%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(225, 212, 194, 0.1);
+  backdrop-filter: blur(6px);
 }
 
 .seg__btn {
@@ -913,8 +914,9 @@ button {
   font-size: 12.5px;
   font-weight: 500;
   color: var(--slate-text-2);
-  background: rgba(225, 212, 194, 0.05);
-  box-shadow: inset 0 0 0 1px rgba(225, 212, 194, 0.08);
+  background: color-mix(in srgb, var(--slate-2) 92%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(225, 212, 194, 0.1);
+  backdrop-filter: blur(6px);
 }
 
 .slate-chip.is-on {
@@ -1013,7 +1015,8 @@ button {
   gap: 2px;
   padding: 3px;
   border-radius: 12px;
-  background: rgba(225, 212, 194, 0.06);
+  background: color-mix(in srgb, var(--slate-2) 92%, transparent);
+  backdrop-filter: blur(6px);
   box-shadow: inset 0 0 0 1px rgba(225, 212, 194, 0.08);
   color: var(--slate-text-2);
   font-size: 11.5px;
@@ -2215,11 +2218,12 @@ button {
 /* ───────────────────────── Brain extras ───────────────────────── */
 .slate-chip--new {
   color: var(--slate-text);
-  background: rgba(225, 212, 194, 0.12);
+  background: color-mix(in srgb, var(--slate-3) 94%, transparent);
 }
 
 .slate-chip--new:hover {
-  background: rgba(225, 212, 194, 0.2);
+  background: var(--slate-3);
+  box-shadow: inset 0 0 0 1px rgba(225, 212, 194, 0.25);
 }
 
 .follow-pill {
@@ -3448,4 +3452,9 @@ span.hl {
   right: 10px;
   font-size: 18px;
   line-height: 1;
+}
+
+.thread--notes {
+  gap: 8px;
+  padding-top: 2px;
 }

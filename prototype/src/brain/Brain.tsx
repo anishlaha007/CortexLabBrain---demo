@@ -128,10 +128,14 @@ export function Brain({ theme }: { theme: Theme }) {
   }
 
   const fitView = (): View => {
-    if (getState().layout === 'lineage') {
-      return boundsView(graph.nodes.filter((n) => n.type === 'hub' || n.type === 'chat').map((n) => ({ x: n.x!, y: n.y! })), 60, 1)
-    }
+    if (getState().layout === 'lineage') return lineageView(graph.nodes.filter((n) => n.type === 'hub' || n.type === 'chat').map((n) => ({ x: n.x!, y: n.y! })))
     return boundsView(graph.nodes.map((n) => ({ x: n.x ?? 0, y: n.y ?? 0 })))
+  }
+
+  /** Lineage leaves room on the left for the topic names, which sit beside their rows. */
+  const lineageView = (pts: { x: number; y: number }[]) => {
+    const v = boundsView([...pts, ...pts.filter((p) => p.x === 0).map((p) => ({ x: -190, y: p.y }))], 50, 1)
+    return v
   }
 
   const flyTo = (to: View, dur = 900) => {
@@ -184,7 +188,7 @@ export function Brain({ theme }: { theme: Theme }) {
     const openPos = openRef.current ? to.get(openRef.current) : null
     const target = openPos
       ? centreOn(openPos.x, openPos.y, layout === 'lineage' ? 1.1 : 1.2)
-      : boundsView(pts, layout === 'lineage' ? 60 : 34, layout === 'lineage' ? 1 : 1.6)
+      : layout === 'lineage' ? lineageView(pts) : boundsView(pts)
     flyTo(target, 1200)
   }, [layout])
 
@@ -660,7 +664,10 @@ export function Brain({ theme }: { theme: Theme }) {
     const onMove = (e: PointerEvent) => {
       const p = local(e)
       if (drag) {
-        if (Math.hypot(p.x - drag.sx, p.y - drag.sy) > 3) drag.moved = true
+        if (Math.hypot(p.x - drag.sx, p.y - drag.sy) > 3 && !drag.moved) {
+          drag.moved = true
+          setTip(null)
+        }
         if (drag.node && drag.moved) {
           const n = drag.node
           if (p.inside) {

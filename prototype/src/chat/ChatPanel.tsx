@@ -46,6 +46,12 @@ export function ChatPanel({ chatId }: Props) {
   const last = all[all.length - 1]
   const lastLen = last ? last.shown ?? last.text.length : 0
 
+  // Opening a chat with new activity (a merge, your question) starts at the newest message.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el && dynamic?.some((m) => m.kind === 'merge' || m.who === 'you')) el.scrollTop = el.scrollHeight
+  }, [])
+
   // Keep the newest message in view as it streams in.
   useEffect(() => {
     const el = scrollRef.current
@@ -99,7 +105,7 @@ export function ChatPanel({ chatId }: Props) {
 
       <div className="chat__body" ref={scrollRef}>
         {empty ? (
-          <EmptyChat chatId={chatId} />
+          <EmptyChat chatId={chatId} notes={dynamic ?? EMPTY} />
         ) : (
           <div className="thread">
             {earlierCount > 0 && (
@@ -212,16 +218,22 @@ function TryAsking({ chatId }: { chatId: string }) {
   )
 }
 
-function EmptyChat({ chatId }: { chatId: string }) {
+function EmptyChat({ chatId, notes }: { chatId: string; notes: Msg[] }) {
   const over = useStore((s) => s.drag?.over === 'chat')
   const qs = suggestionsFor(null, 4)
+  const pulled = notes.filter((m) => m.kind === 'note')
   return (
     <div className={`empty ${over ? 'is-over' : ''}`}>
       <div className="empty__drop">
         <span className="empty__orbit" aria-hidden="true"><i /><i /><i /></span>
-        <h2>Drag anything from the brain into this chat</h2>
+        <h2>{pulled.length ? `${pulled.length} thing${pulled.length > 1 ? 's' : ''} pulled in. Drop more, or ask.` : 'Drag anything from the brain into this chat'}</h2>
         <p>Chats, papers, robots, files or a whole topic. Everything you drop becomes context for your first question.</p>
       </div>
+      {pulled.length > 0 && (
+        <div className="thread thread--notes">
+          {pulled.map((m, i) => <Message key={m.id} msg={m} chatId={chatId} index={-1 - i} />)}
+        </div>
+      )}
       <div className="try">
         <span className="eyebrow">Or just ask</span>
         <div className="try__list">
@@ -262,10 +274,14 @@ function Tray({ chatId }: { chatId: string }) {
   const newest = items[items.length - 1]
   const isFresh = (t?: TrayItem) => !!t?.fresh && Date.now() - t.fresh < 1600
   const chipsRef = useRef<HTMLDivElement>(null)
-  // A new chip scrolls into view as it pops in.
+  const [, settle] = useState(0)
+  // A new chip scrolls into view as it pops in, then loses its highlight.
   useEffect(() => {
-    if (isFresh(newest)) chipsRef.current?.scrollTo({ left: chipsRef.current.scrollWidth, behavior: 'smooth' })
-  }, [newest?.ref])
+    if (!isFresh(newest)) return
+    chipsRef.current?.scrollTo({ left: chipsRef.current.scrollWidth, behavior: 'smooth' })
+    const t = window.setTimeout(() => settle((n) => n + 1), 1700)
+    return () => window.clearTimeout(t)
+  }, [newest?.ref, newest?.fresh])
   return (
     <div className={`tray ${over ? 'is-over' : ''} ${dragging ? 'is-dragging' : ''}`} aria-label="Context for the next question" data-tour="tray">
       <div className="tray__head">

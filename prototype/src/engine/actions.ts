@@ -336,7 +336,7 @@ export function ask(chatId: string | null, raw: string) {
 
   const chat = target
   appendMsg(chat, { id: nextId('m'), who: 'you', text, time: clock() })
-  setState((s) => ({ composer: { ...s.composer, [chat]: '' }, branchFrom: null }))
+  setState((s) => ({ composer: { ...s.composer, [chat]: '', ...(chatId ? { [chatId]: '' } : {}) }, branchFrom: null }))
 
   const nf = entry ? null : notFound(text)
   const answer: Msg = {

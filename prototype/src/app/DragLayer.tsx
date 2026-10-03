@@ -56,7 +56,10 @@ export function DragLayer() {
             <path ref={pathRef} className="tether__line" />
             <circle ref={dotRef} r="7" className="tether__anchor" />
           </svg>
-          <div className={`ghost ${drag.over ? 'is-over' : ''}`} style={{ transform: `translate(${drag.x + 14}px, ${drag.y + 10}px)`, ['--who' as string]: drag.color }}>
+          <div
+            className={`ghost ${drag.over ? 'is-over' : ''} ${drag.x > window.innerWidth - 330 ? 'ghost--left' : ''}`}
+            style={{ transform: drag.x > window.innerWidth - 330 ? `translate(calc(${drag.x - 14}px - 100%), ${drag.y + 10}px)` : `translate(${drag.x + 14}px, ${drag.y + 10}px)`, ['--who' as string]: drag.color }}
+          >
             {drag.color ? <i className="ghost__dot" /> : <Icon name={KIND_ICON[drag.kind] ?? 'file'} size={13} />}
             <span className="ghost__label">{drag.label}</span>
             <span className="ghost__hint">{drag.over === 'chat' ? 'Drop to pull in' : drag.over === 'new-chat' ? 'Drop to start a chat' : 'Drag into a chat'}</span>
