@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ask, chatTitle, copyLink, dismissSuggestion, exportChat, focusNode, liveOwner, openChat, pullSuggestion,
+  ask, chatTitle, copyLink, getChat, dismissSuggestion, exportChat, focusNode, liveOwner, openChat, pullSuggestion,
   removeFromTray, setBranchFrom, setComposer, setFilter, suggestionFor, toggleEarlier,
 } from '../engine/actions'
+import { CPS } from '../engine/ambient'
 import { suggestionsFor } from '../engine/bank'
-import { EMPTY, useStore, type Msg, type TrayItem } from '../engine/store'
-import { ACTIVE, CHATS, HUBS } from '../lab/content'
-import { PEOPLE, type PersonId } from '../lab/people'
-import { DEFAULT_TRAY, LIVE_DRAFTS, THREADS } from '../lab/threads'
+import { EMPTY, setState, useStore, type LiveActivity, type Msg, type TrayItem } from '../engine/store'
+import { CHATS, HUBS } from '../lab/content'
+import { PEOPLE, nameify, type PersonId } from '../lab/people'
+import { DEFAULT_TRAY, THREADS } from '../lab/threads'
 import { Avatar } from '../ui/Avatar'
 import { Icon, type IconName } from '../ui/Icons'
 import { Message } from './Message'
@@ -35,6 +36,8 @@ export function ChatPanel({ chatId }: Props) {
   const dynamic = useStore((s) => s.messages[chatId])
   const showEarlier = useStore((s) => s.showEarlier[chatId])
   const chat = CHATS.find((c) => c.id === chatId) ?? extra.find((c) => c.id === chatId)
+  const active = useStore((s) => s.active)
+  const ambientOff = useStore((s) => s.setup.ambient === 'off')
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const all = useMemo(
@@ -45,6 +48,28 @@ export function ChatPanel({ chatId }: Props) {
   const shown = all.filter((m) => showEarlier || !m.earlier)
   const last = all[all.length - 1]
   const lastLen = last ? last.shown ?? last.text.length : 0
+
+  // Zoomed-in prompt clicked on the brain: scroll to that message and flash it.
+  const focus = useStore((s) => s.focusMsg)
+  useEffect(() => {
+    if (!focus || focus.chat !== chatId) return
+    if (all.find((m) => m.id === focus.msg)?.earlier) setState((s) => ({ showEarlier: { ...s.showEarlier, [chatId]: true } }))
+    // The message may still be rendering (a freshly opened chat, or one behind “show earlier”), so look a few times.
+    let tries = 0
+    let t = 0
+    const find = () => {
+      const el = scrollRef.current?.querySelector(`[data-msg="${focus.msg}"]`)
+      if (!el) {
+        if (++tries < 10) t = window.setTimeout(find, 120)
+        return
+      }
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      el.classList.add('is-flash')
+      window.setTimeout(() => el.classList.remove('is-flash'), 1900)
+    }
+    t = window.setTimeout(find, 160)
+    return () => window.clearTimeout(t)
+  }, [focus?.n])
 
   // Opening a chat with new activity (a merge, your question) starts at the newest message.
   useEffect(() => {
@@ -63,12 +88,18 @@ export function ChatPanel({ chatId }: Props) {
   const owner = PEOPLE[chat.by]
   const live = liveOwner(chatId)
   const prompts = all.filter((m) => m.who !== 'ai' && !m.kind).length
+  const here = active.filter((a) => a.chat === chatId)
   const viewers: { id: PersonId; label: string }[] = [
-    ...ACTIVE.filter((a) => a.chat === chatId).map((a) => ({ id: a.who, label: a.doing })),
+    ...here.map((a) => ({ id: a.who, label: a.doing })),
     { id: 'you', label: 'you' },
   ]
+  const typing = here.find((a) => a.doing === 'typing' && a.draft)
+  // Follow-up questions wait until the latest answer has finished writing.
+  const settled = !last || last.who !== 'ai' || !last.phase || last.phase === 'done'
+  const answered = all.some((m) => m.who === 'ai' && !m.kind && m.phase === 'done')
+  const asked = all.filter((m) => m.who !== 'ai' && !m.kind).map((m) => m.text)
   const isNew = !CHATS.some((c) => c.id === chatId)
-  const empty = isNew && !dynamic?.some((m) => !m.kind)
+  const empty = isNew && chat.by === 'you' && !dynamic?.some((m) => !m.kind)
   let aiIndex = -1
 
   return (
@@ -88,7 +119,7 @@ export function ChatPanel({ chatId }: Props) {
           ) : null}
           <HeaderActions chatId={chatId} />
         </div>
-        <h1 className="chat__title">{renamed ?? chat.title}</h1>
+        <h1 className="chat__title">{chatTitle(chatId)}</h1>
         <div className="chat__meta">
           <Avatar id={chat.by} size={20} />
           <span>Started by <b>{owner.id === 'you' ? 'you' : owner.name}</b> · {isNew ? 'just now' : '2 days ago'} · {prompts} prompt{prompts === 1 ? '' : 's'}</span>
@@ -119,8 +150,8 @@ export function ChatPanel({ chatId }: Props) {
               if (isAnswer) aiIndex++
               return <Message key={m.id} msg={m} chatId={chatId} index={isAnswer ? aiIndex : -1} />
             })}
-            {live && LIVE_DRAFTS[chatId] && <LiveDraft who={live} text={LIVE_DRAFTS[chatId]} />}
-            {!isNew && !THREADS[chatId] && <TryAsking chatId={chatId} />}
+            {typing && <LiveDraft key={`${typing.who}-${typing.since}`} act={typing} loop={!!typing.loop || ambientOff} />}
+            {!THREADS[chatId] && !typing && settled && (!isNew || answered) && <TryAsking chatId={chatId} asked={asked} />}
           </div>
         )}
       </div>
@@ -153,7 +184,7 @@ function HeaderActions({ chatId }: { chatId: string }) {
             <button type="button" className="scrim" aria-label="Close menu" onClick={() => setMenu(false)} />
             <div className="popover menu" role="menu">
               <MenuItem icon="pull" label="Copy link to this chat" onClick={() => { copyLink(chatId); setMenu(false) }} />
-              <MenuItem icon="compass" label="Show it on the brain" onClick={() => { focusNode(chatId, 2.2); setMenu(false) }} />
+              <MenuItem icon="compass" label="Show it on the brain" onClick={() => { focusNode(chatId, 3.1); setMenu(false) }} />
               <MenuItem icon="file" label="Download memory card (.md)" onClick={() => { exportChat(chatId, true); setMenu(false) }} />
               <MenuItem icon="branch" label="Branch from this chat" onClick={() => { setBranchFrom(chatId, 'the latest answer'); setMenu(false) }} />
             </div>
@@ -173,9 +204,17 @@ function MenuItem({ icon, label, onClick }: { icon: IconName; label: string; onC
 }
 
 /** Watching a teammate type, Google Docs style. */
-function LiveDraft({ who, text }: { who: PersonId; text: string }) {
-  const [n, setN] = useState(18)
+/** A teammate's question as they type it. Kofi's draft in the demo chat loops so the tour can always show it. */
+function LiveDraft({ act, loop }: { act: LiveActivity; loop: boolean }) {
+  const text = act.draft ?? ''
+  const who = act.who
+  const typed = () => Math.min(text.length, Math.floor(((Date.now() - act.since) / 1000) * CPS))
+  const [n, setN] = useState(() => (loop ? 18 : typed()))
   useEffect(() => {
+    if (!loop) {
+      const t = window.setInterval(() => setN(typed()), 60)
+      return () => window.clearInterval(t)
+    }
     let i = 18
     let hold = 0
     const t = window.setInterval(() => {
@@ -189,26 +228,26 @@ function LiveDraft({ who, text }: { who: PersonId; text: string }) {
       setN(i)
     }, 85)
     return () => window.clearInterval(t)
-  }, [text])
+  }, [text, loop])
   const p = PEOPLE[who]
   return (
     <div className="live-draft" style={{ ['--who' as string]: p.color }} data-tour="live-draft">
       <span className="port port--live" aria-hidden="true" />
       <div className="msg__head"><Avatar id={who} size={22} /><b>{p.short}</b><span className="live-draft__label">is typing</span></div>
       <p className="live-draft__text">
-        {text.slice(0, n)}
+        {nameify(text.slice(0, n))}
         <span className="caret"><span className="caret__flag">{p.short}</span></span>
       </p>
     </div>
   )
 }
 
-function TryAsking({ chatId }: { chatId: string }) {
-  const chat = CHATS.find((c) => c.id === chatId)
-  const qs = suggestionsFor(chat?.hub ?? null)
+function TryAsking({ chatId, asked }: { chatId: string; asked: string[] }) {
+  const qs = suggestionsFor(getChat(chatId)?.hub ?? null, 3, asked)
+  if (!qs.length) return null
   return (
     <div className="try">
-      <span className="eyebrow">Try asking</span>
+      <span className="eyebrow">{asked.length ? 'Ask next' : 'Try asking'}</span>
       <div className="try__list">
         {qs.map((q) => (
           <button key={q.id} type="button" className="try__q" onClick={() => ask(chatId, q.q)}>{q.q}</button>

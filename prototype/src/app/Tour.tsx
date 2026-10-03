@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
 import {
-  ask, closeViewer, demoDrag, follow, openChat, openManifest, openSource, pullSuggestion, setLayout, setSearch,
+  ask, closeViewer, demoDrag, focusNode, follow, openChat, openManifest, openSource, pullSuggestion, setLayout, setSearch,
   setTheme, setTourStep,
 } from '../engine/actions'
 import { getState, useStore } from '../engine/store'
 import { HERO_CHAT } from '../lab/content'
+import { nameify } from '../lab/people'
 
 interface Step {
   target: string
@@ -52,6 +53,11 @@ const STEPS: Step[] = [
     body: 'Kofi is typing in this chat right now. You see his draft as he writes, like a shared document.',
   },
   {
+    target: 'brain', view: 'hero', title: 'Zoom into a chat',
+    body: 'Scroll in on any chat, or double-click it, and it unfolds into its prompts in order, each with the file it used. Click a prompt to jump to that exact moment in the chat.',
+    show: { label: 'Zoom in for me', run: () => focusNode(HERO_CHAT, 3.1) },
+  },
+  {
     target: 'brain', view: 'hero', title: 'Drag anything into the chat',
     body: 'Grab any dot on the brain, whether a chat, a paper, a robot or a whole topic, and drop it into the chat. It flies into the context tray and joins the next question.',
     show: { label: 'Drag one in for me', run: () => demoDrag('c-contact') },
@@ -73,7 +79,7 @@ const STEPS: Step[] = [
   },
   {
     target: 'themes', title: 'Make it yours',
-    body: 'Light, dark or mocha. That’s the tour. Everything is clickable, so explore.',
+    body: 'Light, dark or mocha. Presenting? Press the comma key for presenter setup: rename the lab and teammates, recolour them, and set how busy the lab is. That’s the tour.',
     show: { label: 'Try mocha', run: () => setTheme('mocha') },
   },
 ]
@@ -145,10 +151,10 @@ export function Tour() {
       )}
       <div className="tour__card" style={{ left: pos.x, top: pos.y, width: card.w }}>
         <span className="tour__count">{step + 1} of {STEPS.length}</span>
-        <h2 className="tour__title">{s.title}</h2>
-        <p className="tour__body">{s.body}</p>
+        <h2 className="tour__title">{nameify(s.title)}</h2>
+        <p className="tour__body">{nameify(s.body)}</p>
         <div className="tour__actions">
-          {s.show && <button type="button" className="btn btn--sm" onClick={s.show.run}>{s.show.label}</button>}
+          {s.show && <button type="button" className="btn btn--sm" onClick={s.show.run}>{nameify(s.show.label)}</button>}
           <span className="tour__nav">
             {step > 0 && <button type="button" className="btn btn--ghost btn--sm" onClick={() => setTourStep(step - 1)}>Back</button>}
             <button type="button" className="btn btn--primary btn--sm" onClick={() => setTourStep(last ? null : step + 1)}>{last ? 'Done' : 'Next'}</button>

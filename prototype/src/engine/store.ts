@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
-import { FEED, type Chat, type FeedItem, type HubId } from '../lab/content'
-import type { PersonId } from '../lab/people'
+import { ACTIVE, FEED, type Chat, type FeedItem, type HubId } from '../lab/content'
+import { PEOPLE, type PersonId, type Presence } from '../lab/people'
+import { LIVE_DRAFTS } from '../lab/threads'
 import { initialTheme, type Theme } from '../app/theme'
 
 // A tiny store: one state object, plain actions, React reads it with useStore(selector).
@@ -96,10 +97,49 @@ export interface Flight {
 export interface LiveFeedItem extends FeedItem {
   id: string
   chat?: string
+  /** When it happened, for items added while you watch. */
+  at?: number
+}
+
+/** Someone (not you) in a chat right now. Typing shows their live draft. */
+export interface LiveActivity {
+  who: PersonId
+  chat: string
+  doing: 'typing' | 'viewing'
+  draft?: string
+  since: number
+  /** Kofi composes forever in the demo chat, so the tour can always show it. */
+  loop?: boolean
+}
+
+export type Ambient = 'off' | 'calm' | 'busy'
+
+export interface Setup {
+  labName: string
+  youName: string
+  people: Partial<Record<PersonId, { name: string; short: string; role: string; color: string; presence: Presence }>>
+  ambient: Ambient
+  cursor: boolean
+  demoChip: boolean
+}
+
+export const DEFAULT_SETUP: Setup = {
+  labName: 'Robophysics Lab',
+  youName: '',
+  people: {},
+  ambient: 'calm',
+  cursor: true,
+  demoChip: true,
 }
 
 export interface State {
   theme: Theme
+  active: LiveActivity[]
+  presence: Record<PersonId, Presence>
+  setup: Setup
+  setupOpen: boolean
+  setupVersion: number
+  focusMsg: { chat: string; msg: string; n: number } | null
   openChat: string | null
   layout: 'brain' | 'lineage'
   extraChats: Chat[]
@@ -128,6 +168,18 @@ export interface State {
 
 const initial: State = {
   theme: initialTheme(),
+  active: ACTIVE.map((a) => ({
+    ...a,
+    // Jonah is part-way through his question when you arrive.
+    since: Date.now() - (a.who === 'jonah' ? 2600 : 0),
+    draft: a.doing === 'typing' ? LIVE_DRAFTS[a.chat] : undefined,
+    loop: a.who === 'kofi',
+  })),
+  presence: Object.fromEntries(Object.values(PEOPLE).map((p) => [p.id, p.presence])) as Record<PersonId, Presence>,
+  setup: DEFAULT_SETUP,
+  setupOpen: false,
+  setupVersion: 0,
+  focusMsg: null,
   openChat: null,
   layout: 'brain',
   extraChats: [],
@@ -152,7 +204,7 @@ const initial: State = {
   drag: null,
   flights: [],
   showEarlier: {},
-  feed: FEED.map((f, i) => ({ ...f, id: `f${i}` })),
+  feed: FEED.map((f, i) => ({ ...f, id: `feed-${i}` })),
   filters: { source: 'All 6 sources', type: 'Any type', date: 'Any date' },
   composer: {},
   focusComposer: 0,

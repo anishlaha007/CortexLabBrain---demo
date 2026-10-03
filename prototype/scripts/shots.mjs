@@ -18,7 +18,7 @@ page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
 
 for (const theme of themes) {
   for (const v of views) {
-    await page.goto(`${base}?theme=${theme}${v.query}`)
+    await page.goto(`${base}?theme=${theme}&ambient=off${v.query}`)
     await page.waitForTimeout(2600)
     await page.screenshot({ path: `shots/${v.name}-${theme}.png` })
     console.log(`shots/${v.name}-${theme}.png`)

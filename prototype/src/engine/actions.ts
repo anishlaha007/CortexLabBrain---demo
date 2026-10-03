@@ -1,5 +1,5 @@
-import { ACTIVE, CHATS, HUBS, type Chat, type HubId } from '../lab/content'
-import { PEOPLE, type PersonId } from '../lab/people'
+import { CHATS, HUBS, type Chat, type HubId } from '../lab/content'
+import { PEOPLE, nameify, type PersonId } from '../lab/people'
 import { DEFAULT_TRAY, SUGGESTIONS, THREADS } from '../lab/threads'
 import { matchBank, notFound } from './bank'
 import { getState, setState, type Msg, type SourceRef, type TrayItem } from './store'
@@ -8,8 +8,8 @@ import {
 } from './world'
 
 let uid = 0
-const nextId = (p: string) => `${p}${++uid}`
-const clock = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+export const nextId = (p: string) => `${p}${++uid}`
+export const clock = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
 // ───────── Lookups ─────────
 
@@ -18,12 +18,16 @@ export function getChat(id: string): Chat | undefined {
 }
 
 export function chatTitle(id: string) {
-  return getState().renamed[id] ?? getChat(id)?.title ?? 'Untitled chat'
+  return nameify(getState().renamed[id] ?? getChat(id)?.title ?? 'Untitled chat')
 }
 
-/** Someone (not you) typing in this chat right now. */
+/** Someone (not you) working in this chat right now: typing in it, or its owner reading it. */
 export function liveOwner(chatId: string): PersonId | null {
-  return ACTIVE.find((a) => a.chat === chatId && a.doing === 'typing' && a.who !== 'you')?.who ?? null
+  const here = getState().active.filter((a) => a.chat === chatId && a.who !== 'you')
+  const typing = here.find((a) => a.doing === 'typing')
+  if (typing) return typing.who
+  const by = getChat(chatId)?.by
+  return here.find((a) => a.who === by)?.who ?? null
 }
 
 export function trayOf(chatId: string): TrayItem[] {
@@ -47,13 +51,17 @@ export function toast(text: string, opts: { who?: PersonId; tone?: 'plain' | 'li
   window.setTimeout(() => setState((s) => ({ toasts: s.toasts.filter((x) => x.id !== t.id) })), 3800)
 }
 
-function pushFeed(who: PersonId | 'ai', verb: string, target: string, chat?: string) {
-  setState((s) => ({
-    feed: [{ id: nextId('f'), who, verb, target, chat, when: 'now', live: false }, ...s.feed].slice(0, 9),
-  }))
+/** Newest first. Whoever is typing right now stays in the feed however busy it gets. */
+export function pushFeed(who: PersonId | 'ai', verb: string, target: string, chat?: string, live = false) {
+  setState((s) => {
+    const all = [{ id: nextId('f'), who, verb, target, chat, when: 'now', at: Date.now(), live }, ...s.feed]
+    const room = Math.max(4, 9 - all.filter((f) => f.live).length)
+    const keep = new Set(all.filter((f) => !f.live).slice(0, room))
+    return { feed: all.filter((f) => f.live || keep.has(f)) }
+  })
 }
 
-function notify(who: PersonId | 'ai', text: string, chat?: string) {
+export function notify(who: PersonId | 'ai', text: string, chat?: string) {
   setState((s) => ({ notices: [{ id: nextId('n'), who, text, chat, when: 'now', unread: true }, ...s.notices] }))
 }
 
@@ -139,7 +147,7 @@ function focusPulse(node: string) {
 
 // ───────── Context tray ─────────
 
-function trayItemFor(ref: string): TrayItem | null {
+export function trayItemFor(ref: string): TrayItem | null {
   const n = graph.byId.get(ref)
   if (!n) return null
   if (n.type === 'chat') return { ref, kind: 'chat', label: n.label, tokens: 3.1, by: n.by }
@@ -238,7 +246,7 @@ export function cancelDrop(ref: string, at: { x: number; y: number }) {
 
 // ───────── Chats: new, branch, ask, merge ─────────
 
-function appendMsg(chatId: string, msg: Msg) {
+export function appendMsg(chatId: string, msg: Msg) {
   setState((s) => ({ messages: { ...s.messages, [chatId]: [...(s.messages[chatId] ?? []), msg] } }))
 }
 
@@ -254,8 +262,8 @@ function titleFrom(text: string) {
   return cap.length > 54 ? cap.slice(0, 52).trimEnd() + '…' : cap
 }
 
-function createChat(c: Omit<Chat, 'id'>) {
-  const id = nextId('c-you-')
+export function createChat(c: Omit<Chat, 'id'>) {
+  const id = nextId(c.by === 'you' ? 'c-you-' : `c-${c.by}-`)
   const chat: Chat = { id, ...c }
   setState((s) => ({ extraChats: [...s.extraChats, chat] }))
   addChatNode(chat)
@@ -282,7 +290,7 @@ function rehome(chatId: string, hub: HubId) {
   addEdge(chatId, hub, 'member')
 }
 
-function readFromFor(sources: SourceRef[] | undefined, files?: { node: string }[]) {
+export function readFromFor(sources: SourceRef[] | undefined, files?: { node: string }[]) {
   const kinds = new Set<string>()
   const names: Record<string, string> = { paper: 'Papers', github: 'GitHub', drive: 'Drive', onedrive: 'OneDrive', labpc: 'Lab PC', web: 'Web', robot: 'Papers' }
   ;[...(sources ?? []), ...(files ?? [])].forEach((s) => {
@@ -296,7 +304,7 @@ function readFromFor(sources: SourceRef[] | undefined, files?: { node: string }[
 export function ask(chatId: string | null, raw: string) {
   const text = raw.trim()
   if (!text) return
-  const entry = matchBank(text)
+  const entry = matchBank(text, chatId ? getChat(chatId)?.hub : null)
   const st = getState()
   let target = chatId
   let mergeTo: { parent: string; owner: PersonId } | null = null
@@ -349,14 +357,15 @@ export function ask(chatId: string | null, raw: string) {
     suggest: entry?.suggest,
     readFrom: readFromFor(entry?.sources, entry?.files ?? nf?.files),
   }
+  const askedId = getState().messages[chat]?.at(-1)?.id
   stream(chat, answer, () => {
-    addMemoryDot(chat, 'you')
+    addMemoryDot(chat, 'you', { text, file: answer.sources?.find((s) => s.node)?.node ?? answer.files?.[0]?.node, msg: askedId })
     if (mergeTo) scheduleMerge(chat, mergeTo.parent, mergeTo.owner, answer)
   })
 }
 
 /** The answer streams in: a moment of searching, then the words. */
-function stream(chatId: string, msg: Msg, done?: () => void) {
+export function stream(chatId: string, msg: Msg, done?: () => void) {
   appendMsg(chatId, { ...msg, phase: 'searching', shown: 0 })
   pulses.set(chatId, performance.now())
   ;(msg.sources ?? []).forEach((s) => s.node && pulses.set(s.node, performance.now()))
@@ -431,7 +440,7 @@ export function exportChat(chatId: string, memoryOnly = false) {
     chat.from?.length ? `built_on: [${chat.from.map((f) => `"${chatTitle(f)}"`).join(', ')}]` : null,
     `context: [${trayOf(chatId).map((t) => `"${t.label}"`).join(', ')}]`,
     `exported: "${new Date().toISOString().slice(0, 10)}"`,
-    'source: "Cortex prototype · Robophysics Lab demo (illustrative)"',
+    `source: "Cortex prototype · ${getState().setup.labName} demo (illustrative)"`,
     '---',
     '',
     `# ${title}`,

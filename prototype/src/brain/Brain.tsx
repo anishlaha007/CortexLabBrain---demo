@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { cancelDrop, dropNode, follow, newChat, openChat, pulses, setLayout } from '../engine/actions'
-import { getState, setState, useStore } from '../engine/store'
-import { births, edgeKey, graph, lineagePositions, setScreenOf, sim } from '../engine/world'
-import { ACTIVE, HUBS, type Activity } from '../lab/content'
-import { PEOPLE, type PersonId } from '../lab/people'
+import { cancelDrop, chatTitle, dropNode, follow, newChat, openChat, openSource, pulses, setLayout } from '../engine/actions'
+import { getState, setState, useStore, type LiveActivity } from '../engine/store'
+import { births, chunksOf, edgeKey, graph, lineagePositions, setPromptHits, setScreenOf, sim } from '../engine/world'
+import { HUBS } from '../lab/content'
+import { PEOPLE, nameify, type PersonId } from '../lab/people'
 import type { GNode } from './graph'
 import { Cursor } from '../ui/Cursor'
 import { Icon } from '../ui/Icons'
@@ -49,6 +49,12 @@ const ease = (t: number) => 1 - Math.pow(1 - t, 3)
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
 const springOut = (t: number) => 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2)
 
+/** Past this zoom, the chat nearest the centre opens into its chain of prompts. */
+const UNFOLD_K = 2.3
+const CARD_W = 318
+
+interface Hit { x: number; y: number; w: number; h: number; kind: 'row' | 'file'; run: () => void }
+
 /** Mei is wandering the brain: a Figma-style cursor gliding between topics. */
 const WANDER: string[] = ['sand', 'maths', 'posts', 'wiggle', 'maths']
 const SEG = 5200
@@ -80,6 +86,11 @@ export function Brain({ theme }: { theme: Theme }) {
   followRef.current = following
   const meiAt = useRef({ x: 0, y: 0 })
   const dropTarget = useRef<string | null>(null)
+  const unfold = useRef<{ id: string | null; t: number }>({ id: null, t: 0 })
+  const hits = useRef<Hit[]>([])
+  const lastClick = useRef<{ id: string; at: number } | null>(null)
+  /** A double-clicked chat: its first click opens it, and the camera should still end up zoomed in. */
+  const zoomWanted = useRef<string | null>(null)
 
   // Lineage transition: every node glides between its brain and lineage positions.
   const brainPos = useRef(new Map<string, { x: number; y: number }>())
@@ -95,11 +106,14 @@ export function Brain({ theme }: { theme: Theme }) {
   const matchRef = useRef(matches)
   matchRef.current = matches
 
-  const activeByChat = useMemo(() => {
-    const m = new Map<string, Activity[]>()
-    ACTIVE.forEach((a) => m.set(a.chat, [...(m.get(a.chat) ?? []), a]))
+  // Who is where right now: rings pulse on those chats, in each person's colour.
+  const active = useStore((s) => s.active)
+  const activeByChat = useRef(new Map<string, LiveActivity[]>())
+  activeByChat.current = useMemo(() => {
+    const m = new Map<string, LiveActivity[]>()
+    active.forEach((a) => m.set(a.chat, [...(m.get(a.chat) ?? []), a]))
     return m
-  }, [])
+  }, [active])
 
   useEffect(() => {
     palette.current = readPalette()
@@ -114,6 +128,10 @@ export function Brain({ theme }: { theme: Theme }) {
       const r = c.getBoundingClientRect()
       const v = view.current
       return { x: r.left + n.x! * v.k + v.x, y: r.top + n.y! * v.k + v.y }
+    })
+    setPromptHits(() => {
+      const r = canvasRef.current?.getBoundingClientRect()
+      return r ? hits.current.map((h) => ({ x: r.left + h.x + h.w / 2, y: r.top + h.y + h.h / 2, kind: h.kind })) : []
     })
   }, [])
 
@@ -148,12 +166,22 @@ export function Brain({ theme }: { theme: Theme }) {
     return { k, x: w / 2 - x * k, y: h / 2 - y * k }
   }
 
+  /** Zoomed into a chat: the node sits left of centre so its prompt card fits beside it. */
+  const zoomedOn = (n: GNode, k = 3.1): View => {
+    const { w } = size.current
+    const shift = Math.min(CARD_W / 2 + 10, w * 0.22)
+    return centreOn(n.x! + shift / k, n.y! + 70 / k, k)
+  }
+
   /** Where the camera should be: the open chat's neighbourhood, or the whole lab. */
   const cameraFor = (chatId: string | null): View => {
     const n = chatId ? graph.byId.get(chatId) : null
     const hub = n ? graph.byId.get(n.hub) : null
     if (!n || !hub) return fitView()
     if (getState().layout === 'lineage') return centreOn(n.x!, n.y!, 1.1)
+    // Zoomed into a chat (or about to be): stay zoomed, with room for its prompt card.
+    if (zoomWanted.current === chatId) return zoomedOn(n)
+    if (view.current.k >= UNFOLD_K) return zoomedOn(n, view.current.k)
     return centreOn((n.x ?? 0) * 0.6 + (hub.x ?? 0) * 0.4, (n.y ?? 0) * 0.6 + (hub.y ?? 0) * 0.4, 1.2)
   }
 
@@ -168,7 +196,7 @@ export function Brain({ theme }: { theme: Theme }) {
   useEffect(() => {
     if (!camera || !fitted.current) return
     const n = graph.byId.get(camera.node)
-    if (n) flyTo(centreOn(n.x!, n.y!, camera.k), 900)
+    if (n) flyTo(n.type === 'chat' && camera.k >= UNFOLD_K ? zoomedOn(n, camera.k) : centreOn(n.x!, n.y!, camera.k), 900)
   }, [camera])
 
   // Brain ↔ Lineage
@@ -269,7 +297,7 @@ export function Brain({ theme }: { theme: Theme }) {
         let target: { x: number; y: number } | null = null
         if (who === 'mei') target = meiAt.current
         else {
-          const act = ACTIVE.find((a) => a.who === who)
+          const act = getState().active.find((a) => a.who === who)
           const n = act ? graph.byId.get(act.chat) : null
           if (n) target = { x: n.x!, y: n.y! }
         }
@@ -474,7 +502,7 @@ export function Brain({ theme }: { theme: Theme }) {
       const rad = (n: GNode) => Math.max(n.r * v.k, MIN_PX[n.type])
       const phase = ((now - t0) % 1100) / 1100
 
-      for (const [chatId, acts] of activeByChat) {
+      for (const [chatId, acts] of activeByChat.current) {
         const n = graph.byId.get(chatId)
         if (!n) continue
         acts.forEach((a, i) => {
@@ -559,6 +587,7 @@ export function Brain({ theme }: { theme: Theme }) {
       const hubFont = (core: boolean) => `${core ? 23 : 18}px "Instrument Serif", Georgia, serif`
       for (const n of graph.nodes) {
         if (!visible(n)) continue
+        if (unfold.current.id === n.id && unfold.current.t > 0.2) continue
         const isOpen = n.id === open
         const matched = match?.has(n.id)
         const showChat = n.type === 'chat' && (
@@ -584,9 +613,155 @@ export function Brain({ theme }: { theme: Theme }) {
       }
       ctx.globalAlpha = 1
 
+      // ───── Zoom into a chat: it opens into its prompts, each with the output it used ─────
+      const uf = unfold.current
+      let want: string | null = null
+      if (v.k >= UNFOLD_K && !lineage) {
+        const cw = size.current.w / 2
+        const ch = size.current.h / 2
+        const openN = open ? graph.byId.get(open) : null
+        const onScreen = (n: GNode) => sx(n) > 0 && sx(n) < size.current.w && sy(n) > 0 && sy(n) < size.current.h
+        if (openN && onScreen(openN)) want = open
+        else {
+          let best = Infinity
+          for (const n of graph.nodes) {
+            if (n.type !== 'chat') continue
+            const d = Math.hypot(sx(n) - cw * 0.8, sy(n) - ch)
+            if (d < best && d < 220) {
+              best = d
+              want = n.id
+            }
+          }
+          const cur = uf.id ? graph.byId.get(uf.id) : null
+          if (cur && want !== uf.id && onScreen(cur) && Math.hypot(sx(cur) - cw * 0.8, sy(cur) - ch) < best + 70) want = uf.id
+        }
+      }
+      if (want !== uf.id) {
+        uf.t = Math.max(0, uf.t - 0.14)
+        if (uf.t === 0) uf.id = want
+      } else if (want) uf.t = Math.min(1, uf.t + 0.06)
+      hits.current = []
+      if (uf.id && uf.t > 0) {
+        const chat = graph.byId.get(uf.id)
+        if (chat) drawUnfold(chat, ease(uf.t))
+      }
+
+      function drawUnfold(chat: GNode, t: number) {
+        const chunks = chunksOf(chat.id)
+        const W = CARD_W
+        const rowH = 46
+        const head = 52
+        const H = head + Math.max(1, chunks.length) * rowH + 8
+        const cx = sx(chat)
+        const cy = sy(chat)
+        let x0 = cx + 26
+        if (x0 + W > size.current.w - 12) x0 = cx - 26 - W
+        const y0 = Math.max(58, Math.min(size.current.h - H - 14, cy - 34)) + (1 - t) * 12
+        const owner = PEOPLE[chat.by!]
+
+        // Focus: the rest of the brain steps back
+        ctx.globalAlpha = 0.42 * t
+        ctx.fillStyle = pal.slate
+        ctx.fillRect(0, 0, size.current.w, size.current.h)
+
+        // Connector from the chat to its card
+        ctx.globalAlpha = t
+        ctx.strokeStyle = withAlpha(owner.color, 0.8)
+        ctx.lineWidth = 1.6
+        ctx.beginPath()
+        ctx.moveTo(cx, cy)
+        const jx = x0 > cx ? x0 : x0 + W
+        ctx.bezierCurveTo((cx + jx) / 2, cy, (cx + jx) / 2, y0 + 26, jx, y0 + 26)
+        ctx.stroke()
+        ctx.fillStyle = owner.color
+        ctx.beginPath()
+        ctx.arc(cx, cy, rad(chat) + 1.5, 0, Math.PI * 2)
+        ctx.fill()
+
+        // The card
+        ctx.fillStyle = withAlpha(pal.slate2, 0.96)
+        ctx.strokeStyle = withAlpha(pal.text, 0.14)
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.roundRect(x0, y0, W, H, 16)
+        ctx.fill()
+        ctx.stroke()
+
+        // Header: title, who, how many prompts
+        ctx.textBaseline = 'top'
+        ctx.textAlign = 'left'
+        ctx.font = '17px "Instrument Serif", Georgia, serif'
+        ctx.fillStyle = pal.text
+        ctx.fillText(fit(chatTitle(chat.id), W - 32), x0 + 16, y0 + 12)
+        ctx.font = '500 10.5px "Hanken Grotesk", sans-serif'
+        ctx.fillStyle = pal.text2
+        ctx.fillText(`${owner.short} · ${chunks.length} prompt${chunks.length === 1 ? '' : 's'} · click one to open it`, x0 + 16, y0 + 33)
+
+        // The spine
+        const spineX = x0 + 24
+        if (chunks.length > 1) {
+          ctx.strokeStyle = withAlpha(pal.text, 0.18)
+          ctx.lineWidth = 1
+          ctx.beginPath()
+          ctx.moveTo(spineX, y0 + head + 12)
+          ctx.lineTo(spineX, y0 + head + (chunks.length - 1) * rowH + 12)
+          ctx.stroke()
+        }
+
+        chunks.forEach((c, i) => {
+          const ry = y0 + head + i * rowH + 12
+          // Each memory dot flies from the brain into its row
+          const ti = Math.max(0, Math.min(1, t * 1.6 - i * 0.12))
+          const dx = sx(c) + (spineX - sx(c)) * ease(ti)
+          const dy = sy(c) + (ry - sy(c)) * ease(ti)
+          const colour = PEOPLE[c.by!]?.color ?? pal.text
+          ctx.globalAlpha = t
+          ctx.fillStyle = colour
+          ctx.beginPath()
+          ctx.arc(dx, dy, 4.6, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.strokeStyle = pal.slate2
+          ctx.lineWidth = 2
+          ctx.stroke()
+
+          ctx.globalAlpha = t * ti
+          ctx.font = '500 12.5px "Hanken Grotesk", sans-serif'
+          ctx.fillStyle = pal.text
+          ctx.fillText(fit(nameify(c.label), W - 56), spineX + 14, ry - 8)
+          const file = c.file ? graph.byId.get(c.file) : null
+          if (file) {
+            const name = file.type === 'chat' ? `Chat: ${file.label}` : file.cite ? file.label : file.label.split('/').pop() ?? file.label
+            if (file.type === 'chat') {
+              ctx.fillStyle = PEOPLE[file.by!].color
+              ctx.beginPath()
+              ctx.arc(spineX + 18, ry + 13.5, 3.5, 0, Math.PI * 2)
+              ctx.fill()
+            } else {
+              ctx.fillStyle = file.source === 'paper' ? pal.text : file.source === 'robot' ? pal.hub : pal.file
+              ctx.fillRect(spineX + 15, ry + 10, 6, 7)
+            }
+            ctx.font = '400 10.5px "JetBrains Mono", monospace'
+            ctx.fillStyle = pal.text2
+            ctx.fillText(fit(name, W - 76), spineX + 27, ry + 8)
+            const ref = file.type === 'chat' ? { chat: file.id, where: `prompt ${i + 1}` } : { node: file.id, where: `prompt ${i + 1}` }
+            hits.current.push({ x: spineX + 10, y: ry + 6, w: W - 44, h: 16, kind: 'file', run: () => openSource(ref, getState().openChat) })
+          }
+          hits.current.push({ x: x0 + 6, y: ry - 12, w: W - 12, h: 18, kind: 'row', run: () => openPrompt(chat.id, c.msg) })
+        })
+        ctx.globalAlpha = 1
+      }
+
+      function fit(text: string, max: number) {
+        if (ctx.measureText(text).width <= max) return text
+        let t = text
+        while (t.length > 4 && ctx.measureText(t + '…').width > max) t = t.slice(0, -1)
+        return t.trimEnd() + '…'
+      }
+
       // Mei's cursor wandering between topics
       const cur = cursorRef.current
-      if (cur) {
+      if (cur) cur.style.display = getState().setup.cursor ? '' : 'none'
+      if (cur && getState().setup.cursor) {
         const tt = (now - t0) / SEG
         const i = Math.floor(tt) % WANDER.length
         const a = graph.byId.get(WANDER[i])!
@@ -613,7 +788,7 @@ export function Brain({ theme }: { theme: Theme }) {
     }
     raf = requestAnimationFrame(draw)
     return () => cancelAnimationFrame(raf)
-  }, [activeByChat])
+  }, [])
 
   // Pointer: hover, drag nodes (and out into a chat), pan, click to open
   useEffect(() => {
@@ -650,9 +825,14 @@ export function Brain({ theme }: { theme: Theme }) {
       return z === 'chat' || z === 'new-chat' ? z : null
     }
 
+    let pressed: Hit | null = null
+    const hitAt = (x: number, y: number) => hits.current.find((h) => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) ?? null
+
     const onDown = (e: PointerEvent) => {
       if (e.button !== 0) return
       const p = local(e)
+      pressed = hitAt(p.x, p.y)
+      if (pressed) return
       const node = pick(p.wx, p.wy)
       drag = { node, sx: p.x, sy: p.y, vx: view.current.x, vy: view.current.y, moved: false, out: false, home: node ? { x: node.x!, y: node.y! } : null }
       canvas.setPointerCapture(e.pointerId)
@@ -707,6 +887,12 @@ export function Brain({ theme }: { theme: Theme }) {
         }
         return
       }
+      if (hitAt(p.x, p.y)) {
+        canvas.style.cursor = 'pointer'
+        hoverRef.current = null
+        setTip(null)
+        return
+      }
       const n = pick(p.wx, p.wy)
       if (n !== hoverRef.current) {
         hoverRef.current = n
@@ -715,6 +901,13 @@ export function Brain({ theme }: { theme: Theme }) {
       setTip(n ? { node: n, x: p.x, y: p.y } : null)
     }
     const onUp = (e: PointerEvent) => {
+      if (pressed) {
+        const p = local(e)
+        const h = pressed
+        pressed = null
+        if (hitAt(p.x, p.y) === h) h.run()
+        return
+      }
       if (!drag) return
       const d = drag
       drag = null
@@ -740,8 +933,21 @@ export function Brain({ theme }: { theme: Theme }) {
         return
       }
       if (!d.moved) {
-        if (n.type === 'chat') openChat(n.id)
-        else if (n.type === 'hub') flyTo(centreOn(n.x!, n.y!, 1.9), 900)
+        const now = performance.now()
+        const dbl = lastClick.current && lastClick.current.id === n.id && now - lastClick.current.at < 380
+        lastClick.current = { id: n.id, at: now }
+        if (n.type === 'chat') {
+          // Double-click zooms into the chat: it opens into its prompts.
+          if (dbl) {
+            zoomWanted.current = n.id
+            window.setTimeout(() => (zoomWanted.current = null), 1600)
+            flyTo(zoomedOn(n), 900)
+          } else openChat(n.id)
+        } else if (n.type === 'hub') flyTo(centreOn(n.x!, n.y!, 1.9), 900)
+        else if (n.type === 'chunk') {
+          const parent = graph.links.find((l) => l.target.id === n.id && l.type === 'chunk')?.source
+          if (parent) openPrompt(parent.id, n.msg)
+        }
       }
     }
     const onLeave = () => {
@@ -780,6 +986,39 @@ export function Brain({ theme }: { theme: Theme }) {
     const t = window.setTimeout(() => setDropHint(false), 5200)
     return () => window.clearTimeout(t)
   }, [openChat_])
+
+  /** Open a chat at one of its prompts, keeping the brain zoomed in. */
+  function openPrompt(chatId: string, msg?: string) {
+    openChat(chatId)
+    if (msg) setState((s) => ({ focusMsg: { chat: chatId, msg, n: (s.focusMsg?.n ?? 0) + 1 } }))
+  }
+
+  const level = zoomPct < 95 ? 'lab' : zoomPct < UNFOLD_K * 100 ? 'topic' : 'chat'
+  const goLevel = (l: 'lab' | 'topic' | 'chat') => {
+    if (l === 'lab') return flyTo(fitView(), 900)
+    const { w, h } = size.current
+    const v = view.current
+    const cxw = (w / 2 - v.x) / v.k
+    const cyw = (h / 2 - v.y) / v.k
+    const nearest = (type: GNode['type']) => {
+      if (type === 'chat' && openRef.current) return graph.byId.get(openRef.current)!
+      let best: GNode | null = null
+      let bd = Infinity
+      for (const n of graph.nodes) {
+        if (n.type !== type || n.id === 'core') continue
+        const d = Math.hypot(n.x! - cxw, n.y! - cyw)
+        if (d < bd) {
+          bd = d
+          best = n
+        }
+      }
+      return best!
+    }
+    if (l === 'topic') {
+      const n = nearest('hub')
+      flyTo(centreOn(n.x!, n.y!, 1.6), 900)
+    } else flyTo(zoomedOn(nearest('chat')), 900)
+  }
 
   const zoomBy = (f: number) => {
     const { w, h } = size.current
@@ -832,6 +1071,17 @@ export function Brain({ theme }: { theme: Theme }) {
         <span><i className="lg-line lg-line--dot" /> Pulled in</span>
       </div>
 
+      <div className="brain__level" role="group" aria-label="Zoom level" data-tour="levels">
+        {(['lab', 'topic', 'chat'] as const).map((l, i) => (
+          <span key={l} className="brain__level-step">
+            {i > 0 && <i aria-hidden="true">›</i>}
+            <button type="button" className={level === l ? 'is-on' : ''} aria-pressed={level === l} onClick={() => goLevel(l)}>
+              {l === 'lab' ? 'Lab' : l === 'topic' ? 'Topic' : 'Chat'}
+            </button>
+          </span>
+        ))}
+      </div>
+
       <div className="brain__zoom">
         <button type="button" aria-label="Zoom out" onClick={() => zoomBy(1 / 1.35)}><Icon name="minus" size={14} /></button>
         <span>{zoomPct}%</span>
@@ -840,7 +1090,7 @@ export function Brain({ theme }: { theme: Theme }) {
       </div>
 
       <div className="brain__cursor" ref={cursorRef} aria-hidden="true">
-        <Cursor color={PEOPLE.mei.color} name="Mei" onColor={PEOPLE.mei.onColor} />
+        <Cursor color={PEOPLE.mei.color} name={PEOPLE.mei.short} onColor={PEOPLE.mei.onColor} />
       </div>
 
       {tip && <Tip node={tip.node} x={tip.x} y={tip.y} split={!!openChat_} />}
@@ -858,7 +1108,7 @@ function Tip({ node, x, y, split }: { node: GNode; x: number; y: number; split: 
   } else if (node.type === 'chat') {
     const p = PEOPLE[node.by!]
     kind = node.kind === 'branch' ? 'Branch' : node.kind === 'merge' ? 'Merge' : 'Chat'
-    const act = ACTIVE.filter((a) => a.chat === node.id)
+    const act = getState().active.filter((a) => a.chat === node.id)
     meta = (
       <>
         <span className="tip__who"><i style={{ background: p.color }} />{p.name}</span>
@@ -882,7 +1132,7 @@ function Tip({ node, x, y, split }: { node: GNode; x: number; y: number; split: 
       <span className="tip__kind">{kind}</span>
       <span className={`tip__title ${node.type === 'data' || (node.type === 'file' && node.source !== 'paper' && node.source !== 'robot' && node.source !== 'web') ? 'mono' : ''}`}>{node.label}</span>
       <span className="tip__meta">{meta}</span>
-      <span className="tip__hint">{split ? 'Drag into the chat to pull it in' : node.type === 'chat' ? 'Click to open · drag out to start a chat with it' : 'Drag out to start a chat with it'}</span>
+      <span className="tip__hint">{node.type === 'chat' ? `Click to open · double-click to zoom in${split ? ' · drag into the chat' : ''}` : node.type === 'chunk' ? 'Click to open this prompt' : split ? 'Drag into the chat to pull it in' : 'Drag out to start a chat with it'}</span>
     </div>
   )
 }

@@ -8,6 +8,7 @@ import {
   type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from 'd3-force'
+import { PROMPTS } from '../lab/prompts'
 import { CHATS, FILES, HUBS, RELATED, type ChatKind, type HubId, type SourceKind } from '../lab/content'
 import type { PersonId } from '../lab/people'
 
@@ -25,6 +26,10 @@ export interface GNode extends SimulationNodeDatum {
   cite?: string
   /** Number of chats in a hub, used for sizing and the Topics list. */
   weight?: number
+  /** Prompt chunks: their order in the chat, the file they leaned on, the message they map to. */
+  idx?: number
+  file?: string
+  msg?: string
 }
 
 export type EdgeType = 'member' | 'cites' | 'branch' | 'merge' | 'pull' | 'data' | 'related' | 'chunk'
@@ -146,18 +151,36 @@ export function buildGraph(): Graph {
   })
 
   // Lab memory: every saved question and answer is a small dot in the asker's colour.
-  // Zooming into a chat (step 3) opens these into its prompt chain.
+  // Zooming into a chat opens these into its prompt chain.
   CHATS.forEach((c) => {
     const chat = byId.get(c.id)!
-    const count = 2 + Math.floor(rand() * 4)
-    for (let i = 0; i < count; i++) {
+    PROMPTS[c.id].forEach((p, i) => {
       const id = `m-${c.id}-${i}`
       add({
-        id, type: 'chunk', label: `Answer ${i + 1} · ${c.title}`, hub: c.hub, by: c.by, r: 1.25,
+        id, type: 'chunk', label: p.text, hub: c.hub, by: c.by, r: 1.25, idx: i, file: p.file, msg: p.msg,
         x: (chat.x ?? 0) + (rand() - 0.5) * 30, y: (chat.y ?? 0) + (rand() - 0.5) * 30,
       })
       link(c.id, id, 'chunk')
-    }
+    })
+  })
+
+  // Give each prompt its own output where possible: cited files first, then the chat's raw data.
+  CHATS.forEach((c) => {
+    const pool = [
+      ...(c.cites ?? []),
+      ...links.filter((l) => l.type === 'data' && l.source.id === c.id).map((l) => l.target.id),
+      ...nodes.filter((n) => n.type === 'data' && n.hub === c.hub).map((n) => n.id),
+    ]
+    const used = new Set<string>()
+    PROMPTS[c.id].forEach((_, i) => {
+      const n = byId.get(`m-${c.id}-${i}`)!
+      if (n.msg) return
+      const pick = pool.find((id) => !used.has(id))
+      if (pick) {
+        n.file = pick
+        used.add(pick)
+      }
+    })
   })
 
   const neighbours = new Map<string, Set<string>>()

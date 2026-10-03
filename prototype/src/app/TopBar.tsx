@@ -3,19 +3,27 @@ import {
   ask, follow, focusNode, markAllRead, markNoticeRead, openChat, openSource, setSearch, setTheme, startTour,
 } from '../engine/actions'
 import { BANK } from '../engine/bank'
+import { openSetup } from '../engine/setup'
 import { useStore } from '../engine/store'
 import { graph } from '../engine/world'
 import { HUBS } from '../lab/content'
-import { PEOPLE, TEAM_ORDER, type PersonId } from '../lab/people'
+import { PEOPLE, TEAM_ORDER, nameify, type PersonId } from '../lab/people'
 import { AiMark, Avatar, CortexGlyph } from '../ui/Avatar'
 import { Icon } from '../ui/Icons'
 import { THEMES } from './theme'
+
+/** A spread of question types for the empty search: new member, new idea, meeting prep, finding files, background. */
+const TRY = ['onboard', 'pivot', 'open-questions', 'disagree', 'find-ant-video', 'granular']
 
 export function TopBar() {
   const theme = useStore((s) => s.theme)
   const split = useStore((s) => !!s.openChat)
   const [pop, setPop] = useState<'credits' | 'notices' | 'you' | null>(null)
-  const live = TEAM_ORDER.filter((id) => PEOPLE[id].presence === 'live')
+  const presence = useStore((s) => s.presence)
+  const labName = useStore((s) => s.setup.labName)
+  const youName = useStore((s) => s.setup.youName)
+  const demoChip = useStore((s) => s.setup.demoChip)
+  const live = TEAM_ORDER.filter((id) => presence[id] === 'live')
   const toggle = (p: typeof pop) => setPop((cur) => (cur === p ? null : p))
 
   return (
@@ -27,10 +35,12 @@ export function TopBar() {
         </button>
         <span className="topbar__slash" aria-hidden="true">/</span>
         <div className="workspace">
-          <span className="workspace__name">Robophysics Lab</span>
-          <button type="button" className="demo-chip" onClick={() => toggle('credits')} aria-expanded={pop === 'credits'}>
-            Demo lab
-          </button>
+          <span className="workspace__name">{labName}</span>
+          {demoChip && (
+            <button type="button" className="demo-chip" onClick={() => toggle('credits')} aria-expanded={pop === 'credits'}>
+              Demo lab
+            </button>
+          )}
           {pop === 'credits' && <Credits onClose={() => setPop(null)} />}
         </div>
       </div>
@@ -68,7 +78,7 @@ export function TopBar() {
         <Notices open={pop === 'notices'} onToggle={() => toggle('notices')} onClose={() => setPop(null)} />
         <div className="menu-wrap">
           <button type="button" className="you-btn" onClick={() => toggle('you')} aria-expanded={pop === 'you'} aria-label="Your menu">
-            <Avatar id="you" size={30} title="You (guest)" />
+            <Avatar id="you" size={30} title={youName ? `${youName} (you)` : 'You (guest)'} />
           </button>
           {pop === 'you' && (
             <>
@@ -76,9 +86,10 @@ export function TopBar() {
               <div className="popover menu menu--right" role="menu">
                 <div className="menu__who">
                   <Avatar id="you" size={30} />
-                  <span><b>You</b><span>Guest in Robophysics Lab</span></span>
+                  <span><b>{youName || 'You'}</b><span>Guest in {labName}</span></span>
                 </div>
                 <button type="button" role="menuitem" className="menu__item" onClick={() => { setPop(null); startTour() }}><Icon name="compass" size={14} /> Take the tour</button>
+                <button type="button" role="menuitem" className="menu__item" onClick={() => { setPop(null); openSetup() }}><Icon name="sliders" size={14} /> Presenter setup <kbd className="menu__kbd">,</kbd></button>
                 <button type="button" role="menuitem" className="menu__item" onClick={() => setPop('credits')}><Icon name="paper" size={14} /> About this demo lab</button>
                 <button type="button" role="menuitem" className="menu__item" onClick={() => { window.location.href = window.location.pathname }}><Icon name="arrowLeft" size={14} /> Restart the demo</button>
               </div>
@@ -134,7 +145,7 @@ function Notices({ open, onToggle, onClose }: { open: boolean; onToggle: () => v
                     }}
                   >
                     {n.who === 'ai' ? <AiMark size={26} /> : <Avatar id={n.who} size={26} />}
-                    <span className="notice__text">{n.text}</span>
+                    <span className="notice__text">{nameify(n.text)}</span>
                     <span className="notice__when">{n.when}</span>
                   </button>
                 </li>
@@ -163,6 +174,7 @@ function SearchBox({ split }: { split: boolean }) {
       chats: graph.nodes.filter((n) => n.type === 'chat' && hit(n.label)).slice(0, 4),
       files: graph.nodes.filter((n) => n.type === 'file' && hit(`${n.label} ${n.cite ?? ''}`)).slice(0, 4),
       people: (Object.keys(PEOPLE) as PersonId[]).filter((id) => id !== 'you' && hit(`${PEOPLE[id].name} ${PEOPLE[id].focus}`)).slice(0, 3),
+      questions: BANK.filter((b) => hit(`${b.q} ${b.title}`)).slice(0, 3),
     }
     // extraChats is a dependency so new chats show up in results.
   }, [q, chats])
@@ -209,6 +221,11 @@ function SearchBox({ split }: { split: boolean }) {
               </button>
               {results && (
                 <>
+                  <Group title="Questions the Lab AI can answer" show={results.questions.length > 0}>
+                    {results.questions.map((b) => (
+                      <Row key={b.id} icon={<Icon name="sparkle" size={14} />} label={b.q} onPick={() => { ask(null, b.q); done() }} />
+                    ))}
+                  </Group>
                   <Group title="Topics" show={results.topics.length > 0}>
                     {results.topics.map((h) => (
                       <Row key={h.id} icon={<Icon name="compass" size={14} />} label={h.label} meta={h.question} onPick={() => { focusNode(h.id, 1.9); done() }} />
@@ -234,7 +251,7 @@ function SearchBox({ split }: { split: boolean }) {
             </>
           ) : (
             <Group title="Try asking" show>
-              {BANK.filter((b) => ['onboard', 'pivot', 'ants', 'week', 'granular'].includes(b.id)).map((b) => (
+              {TRY.map((id) => BANK.find((b) => b.id === id)!).map((b) => (
                 <Row key={b.id} icon={<Icon name="sparkle" size={14} />} label={b.q} onPick={() => { ask(null, b.q); done() }} />
               ))}
             </Group>

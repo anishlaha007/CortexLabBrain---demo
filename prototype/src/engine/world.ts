@@ -75,19 +75,29 @@ export function renameNode(id: string, label: string) {
   if (n) n.label = label
 }
 
-/** Every saved answer adds a small memory dot in the asker's colour. */
-export function addMemoryDot(chatId: string, by: GNode['by']) {
+/** Every saved answer adds a small memory dot in the asker's colour: one more prompt in the chain. */
+export function addMemoryDot(chatId: string, by: GNode['by'], prompt?: { text: string; file?: string; msg?: string }) {
   const chat = graph.byId.get(chatId)
   if (!chat) return
-  const id = `m-${chatId}-live-${Math.random().toString(36).slice(2, 7)}`
+  const idx = chunksOf(chatId).length
+  const id = `m-${chatId}-live-${idx}-${Math.random().toString(36).slice(2, 6)}`
   graph.nodes.push({
-    id, type: 'chunk', label: `Answer · ${chat.label}`, hub: chat.hub, by, r: 1.25,
+    id, type: 'chunk', label: prompt?.text ?? `Answer · ${chat.label}`, hub: chat.hub, by, r: 1.25,
+    idx, file: prompt?.file, msg: prompt?.msg,
     x: (chat.x ?? 0) + (Math.random() - 0.5) * 12, y: (chat.y ?? 0) + (Math.random() - 0.5) * 12,
   })
   graph.byId.set(id, graph.nodes[graph.nodes.length - 1])
   graph.neighbours.set(id, new Set())
   births.set(id, performance.now())
   addEdge(chatId, id, 'chunk')
+}
+
+/** A chat's prompts in order, for zooming in. */
+export function chunksOf(chatId: string) {
+  return graph.links
+    .filter((l) => l.source.id === chatId && l.type === 'chunk')
+    .map((l) => l.target)
+    .sort((a, b) => (a.idx ?? 0) - (b.idx ?? 0))
 }
 
 // ───────── Lineage layout: topics as rows, time left to right, branches and merges to the right ─────────
@@ -142,4 +152,10 @@ export function lineagePositions() {
 export let screenOf: (id: string) => { x: number; y: number } | null = () => null
 export function setScreenOf(fn: typeof screenOf) {
   screenOf = fn
+}
+
+/** Clickable parts of a zoomed-in chat card, in screen coordinates (for the click-test). */
+export let promptHits: () => { x: number; y: number; kind: 'row' | 'file' }[] = () => []
+export function setPromptHits(fn: typeof promptHits) {
+  promptHits = fn
 }

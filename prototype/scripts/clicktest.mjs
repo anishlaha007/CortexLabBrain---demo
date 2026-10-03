@@ -18,6 +18,9 @@ async function check(name, fn) {
     results.push(['ok', name])
   } catch (e) {
     results.push(['FAIL', name, String(e.message ?? e).split('\n')[0]])
+    // Leave the app in a clean state so one failure doesn't take the next checks down with it.
+    await page.mouse.up().catch(() => {})
+    for (let i = 0; i < 3; i++) if (await page.locator('.setup, .tour__card, .viewer-panel, .modal').count()) await page.keyboard.press('Escape')
   }
 }
 const expectVisible = async (sel, timeout = 4000) => page.locator(sel).first().waitFor({ state: 'visible', timeout })
@@ -53,8 +56,11 @@ async function dragNodeTo(id, target) {
   return b
 }
 
-await page.goto(`${base}?theme=light`)
+// Teammates stay still for the main run (ambient=off); the last check turns them loose.
+await page.goto(`${base}?theme=light&ambient=off`)
 await wait(1800)
+const search = () => page.getByRole('searchbox', { name: 'Search or ask the whole lab' })
+const promptHits = () => page.evaluate(() => window.__cortex.promptHits())
 
 await check('Theme switch: dark, mocha, light', async () => {
   for (const t of ['Dark · Ink', 'Mocha', 'Light · Oatmeal']) {
@@ -63,6 +69,36 @@ await check('Theme switch: dark, mocha, light', async () => {
   }
   const th = await page.evaluate(() => document.documentElement.dataset.theme)
   if (th !== 'light') throw new Error('theme is ' + th)
+})
+
+await check('Presenter setup: comma key, rename, recolour, status, copy link, reset', async () => {
+  await page.keyboard.press(',')
+  await expectVisible('.setup')
+  await page.getByLabel('Lab name').fill('Motion Lab')
+  const kofi = page.locator('.setup__person').first()
+  await kofi.getByLabel('Name').fill('Dr. Ama Owusu')
+  await kofi.getByLabel('Status').selectOption('away')
+  // Busy, then straight back to Off so the rest of the run stays still.
+  await page.locator('.setup').getByRole('radio', { name: /Busy/ }).click()
+  await page.locator('.setup').getByRole('radio', { name: /Off/ }).click()
+  if ((await page.locator('.setup').getByRole('radio', { name: /Off/ }).getAttribute('aria-checked')) !== 'true') throw new Error('ambient radio')
+  await page.locator('.setup .toggle', { hasText: 'cursor' }).click()
+  await shot('setup')
+  await page.locator('.setup').getByRole('button', { name: /Copy setup link/ }).click()
+  await expectVisible('.toast')
+  await page.locator('.setup').getByRole('button', { name: 'Done' }).click()
+  if ((await page.locator('.workspace__name').innerText()) !== 'Motion Lab') throw new Error('lab name not applied')
+  await expectVisible('.person:has-text("Dr. Ama Owusu")')
+  if (await page.locator('.brain__cursor').isVisible()) throw new Error('cursor still shown')
+  await page.getByRole('button', { name: 'Your menu' }).click()
+  await page.getByRole('menuitem', { name: /Presenter setup/ }).click()
+  await expectVisible('.setup')
+  await page.locator('.setup').getByRole('button', { name: 'Reset' }).click()
+  await page.locator('.setup').getByRole('radio', { name: /Off/ }).click()
+  await page.keyboard.press('Escape')
+  if (await page.locator('.setup').count()) throw new Error('Esc did not close setup')
+  if ((await page.locator('.workspace__name').innerText()) !== 'Robophysics Lab') throw new Error('reset did not restore the lab name')
+  await expectVisible('.person:has-text("Dr. Kofi Mensah")')
 })
 
 await check('Demo lab chip opens credits', async () => {
@@ -82,6 +118,25 @@ await check('Search lights up the brain and lists results', async () => {
   await wait(500)
 })
 
+await check('Question bank: 60+ questions, each found again when reworded', async () => {
+  const bank = await page.evaluate(() => window.__cortex.bank())
+  if (bank.length < 60) throw new Error(`only ${bank.length} questions`)
+  const reword = (q) => q.replace(/[?.!]+$/, '').toLowerCase() + ' please'
+  const misses = []
+  for (const b of bank) {
+    const got = await page.evaluate((q) => window.__cortex.match(q), reword(b.q))
+    if (got !== b.id) misses.push(`${b.id}→${got}`)
+  }
+  if (misses.length) throw new Error(misses.join(', '))
+})
+
+await check('Search lists questions the Lab AI can answer', async () => {
+  await search().fill('robot blob')
+  await expectVisible('.search-pop__group:has-text("Questions the Lab AI can answer") .search-pop__row')
+  await search().fill('')
+  await page.keyboard.press('Escape')
+})
+
 await check('Search Enter asks the Lab AI in a new chat (pivot idea + suggested pull)', async () => {
   const box = page.getByRole('searchbox', { name: 'Search or ask the whole lab' })
   await box.fill('Could a centipede robot weed under blueberry bushes?')
@@ -98,6 +153,22 @@ await check('Not-found answer for something outside the files', async () => {
   await page.getByRole('textbox', { name: 'Your question' }).fill('What is the lab budget for next year?')
   await page.getByRole('button', { name: 'Ask', exact: true }).click()
   await expectVisible('.msg__text.is-notfound', 9000)
+  await page.keyboard.press('Escape')
+  await wait(600)
+})
+
+await check('Question bank: an answer offers topic follow-ups that ask the next question', async () => {
+  await search().fill('How do fire ants dig tunnels without traffic jams?')
+  await search().press('Enter')
+  await expectVisible('.try:has-text("Ask next") .try__q', 9000)
+  const asked = await page.locator('.msg--human').count()
+  const next = await page.locator('.try__q').first().innerText()
+  await page.locator('.try__q').first().click()
+  await wait(300)
+  await expectCount('.msg--human', asked + 1)
+  await expectVisible('.msg--ai >> nth=1', 9000)
+  await page.waitForFunction(() => document.querySelectorAll('.msg--ai .sources, .msg--ai .sources--files').length >= 2, null, { timeout: 9000 })
+  if (!next) throw new Error('empty follow-up')
   await page.keyboard.press('Escape')
   await wait(600)
 })
@@ -138,6 +209,20 @@ await check('People rail Follow buttons', async () => {
 await check('Research topics fly the camera', async () => {
   await page.locator('.topic').filter({ hasText: 'Fire ant tunnels' }).click()
   await wait(1000)
+})
+
+await check('Double-click a chat on the brain: it unfolds into its prompts', async () => {
+  await page.getByRole('button', { name: 'Fit the whole lab' }).click()
+  await wait(900)
+  const id = await visibleNode(['c-traffic', 'c-pairs', 'c-drift', 'c-rft', 'c-stuck', 'c-grant'])
+  const p = await nodeAt(id)
+  await page.mouse.dblclick(p.x, p.y)
+  await wait(1700)
+  const hits = await promptHits()
+  if (!hits.some((h) => h.kind === 'row')) throw new Error('no prompt card')
+  await shot('zoom-dblclick')
+  await page.keyboard.press('Escape')
+  await wait(700)
 })
 
 await check('Brain: files toggle, zoom in/out/fit', async () => {
@@ -223,6 +308,25 @@ await check('Show earlier messages', async () => {
   await page.getByRole('button', { name: 'show', exact: true }).click()
   await expectVisible('text=Summarise our snake robot slope trials')
   await page.getByRole('button', { name: 'hide', exact: true }).click()
+})
+
+await check('Zoom into a chat: prompts unfold, a prompt jumps to its message, a file opens', async () => {
+  await page.locator('.brain__level').getByRole('button', { name: 'Chat', exact: true }).click()
+  await wait(1700)
+  const hits = await promptHits()
+  const rows = hits.filter((h) => h.kind === 'row')
+  const files = hits.filter((h) => h.kind === 'file')
+  if (rows.length < 3) throw new Error(`${rows.length} prompt rows`)
+  await shot('zoom')
+  await page.mouse.click(rows[1].x, rows[1].y)
+  await expectVisible('.msg.is-flash', 4000)
+  if (!files.length) throw new Error('no prompt files')
+  const again = (await promptHits()).filter((h) => h.kind === 'file')
+  await page.mouse.click(again[0].x, again[0].y)
+  await expectVisible('.viewer-panel')
+  await page.locator('.viewer-panel').getByRole('button', { name: 'Close' }).click()
+  await page.locator('.brain__level').getByRole('button', { name: 'Topic', exact: true }).click()
+  await wait(900)
 })
 
 await check('Citation opens the source panel; Show on brain; public link present', async () => {
@@ -318,16 +422,24 @@ await check('Topic crumb and back arrow', async () => {
 
 await check('Tour: every step and every “Show me”', async () => {
   await page.getByRole('button', { name: 'Take the tour' }).click()
-  for (let i = 0; i < 13; i++) {
+  await expectVisible('.tour__card')
+  const total = Number((await page.locator('.tour__count').innerText()).split(/\s+of\s+/i)[1])
+  if (total < 14) throw new Error(`only ${total} steps`)
+  for (let i = 0; i < total; i++) {
     await expectVisible('.tour__card').catch(() => { throw new Error(`step ${i + 1}: card missing`) })
     await wait(750)
+    const title = await page.locator('.tour__title').innerText()
     const show = page.locator('.tour__actions > .btn:not(.btn--primary):not(.btn--ghost)')
     if (await show.count()) {
       await show.click()
-      await wait(i === 8 ? 2400 : 900)
+      await wait(/Drag anything|Zoom into/.test(title) ? 2400 : 900)
       if (await page.locator('.viewer-panel, .modal').count()) await page.keyboard.press('Escape')
     }
-    if (i === 8) await shot('tour-drag')
+    if (/Drag anything/.test(title)) await shot('tour-drag')
+    if (/Zoom into/.test(title)) {
+      await shot('tour-zoom')
+      if (!(await promptHits()).length) throw new Error('tour zoom: no prompt card')
+    }
     await page.locator('.tour__nav .btn--primary').click({ timeout: 6000 }).catch((e) => { throw new Error(`step ${i + 1}: ${e.message.split('\n')[0]}`) })
   }
   if (await page.locator('.tour__card').count()) throw new Error('tour still open')
@@ -337,6 +449,22 @@ await check('Cortex logo returns home', async () => {
   await page.getByRole('button', { name: 'Cortex home: the whole lab' }).click()
   await wait(600)
   await shot('end')
+})
+
+await check('Ambient (busy): teammates ask on their own, and someone notices your chat', async () => {
+  await page.goto(`${base}?theme=light&ambient=busy`)
+  await wait(1200)
+  await search().fill('What is robophysics?')
+  await search().press('Enter')
+  await expectVisible('.msg--ai .sources', 9000)
+  await page.locator('.toast', { hasText: 'reading your chat' }).waitFor({ timeout: 25000 })
+  await page.waitForFunction(() => [...document.querySelectorAll('.feed__item')].some((li) => /asked the Lab AI in/.test(li.textContent ?? '') && !/^You/.test((li.textContent ?? '').trim())), null, { timeout: 25000 })
+  await page.getByRole('button', { name: /Notifications/ }).click()
+  await page.locator('.notice', { hasText: 'opened your chat' }).first().click()
+  await expectVisible('.chat')
+  await page.getByRole('button', { name: 'Cortex home: the whole lab' }).click()
+  await wait(9000)
+  await shot('ambient')
 })
 
 await browser.close()

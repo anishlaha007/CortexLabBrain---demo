@@ -2,7 +2,7 @@ import { addToTray, chatTitle, closeViewer, focusNode, getChat, messagesOf, open
 import { graph } from '../engine/world'
 import { useStore, type SourceRef } from '../engine/store'
 import { CHATS, HUBS } from '../lab/content'
-import { PEOPLE } from '../lab/people'
+import { PEOPLE, nameify } from '../lab/people'
 import { viewFor, type SourceView } from '../lab/sources'
 import { iconForRef, refName, Rich } from '../chat/Message'
 import { Avatar } from '../ui/Avatar'
@@ -21,7 +21,7 @@ function SourcePanel({ refx, chat }: { refx: SourceRef; chat: string | null }) {
   const node = refx.node ? graph.byId.get(refx.node) : null
   const memChat = refx.chat ? getChat(refx.chat) : null
   const citedIn = refx.node ? CHATS.filter((c) => c.cites?.includes(refx.node!)).slice(0, 4) : []
-  const view: SourceView | null = node ? viewFor(node.id, node.label) : null
+  const view: SourceView | null = node ? renamed(viewFor(node.id, node.label)) : null
   const kindLabel = memChat ? 'Lab memory · chat' : node?.type === 'data' ? 'Raw data · metadata only' : (node?.source ?? 'file')
 
   return (
@@ -42,7 +42,7 @@ function SourcePanel({ refx, chat }: { refx: SourceRef; chat: string | null }) {
             <h3 className="eyebrow">Also cited in</h3>
             {citedIn.map((c) => (
               <button key={c.id} type="button" className="also" onClick={() => { closeViewer(); openChat(c.id) }}>
-                <i style={{ background: PEOPLE[c.by].color }} /> {c.title} <span>· {PEOPLE[c.by].short}</span>
+                <i style={{ background: PEOPLE[c.by].color }} /> {chatTitle(c.id)} <span>· {PEOPLE[c.by].short}</span>
               </button>
             ))}
           </section>
@@ -73,6 +73,14 @@ function SourcePanel({ refx, chat }: { refx: SourceRef; chat: string | null }) {
       </footer>
     </aside>
   )
+}
+
+/** Swap the presenter's names into every string of a source view (URLs stay as they are). */
+function renamed<T>(v: T): T {
+  if (typeof v === 'string') return (/^https?:/.test(v) ? v : nameify(v)) as T
+  if (Array.isArray(v)) return v.map(renamed) as T
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, renamed(x)])) as T
+  return v
 }
 
 function SourceBody({ view }: { view: SourceView }) {
@@ -174,7 +182,7 @@ function MemoryView({ chatId }: { chatId: string }) {
       <p className="sv__cite"><Avatar id={chat.by} size={18} /> {p.name}{p.presence === 'alumni' ? ' · graduated 2025' : ''} · {hub?.label}</p>
       <div className="sv__paper">
         {first ? <div className="hl"><Rich text={first.text.replace(/\[\d+\]/g, '')} /></div> : (
-          <p className="hl">{p.short}’s chat “{chat.title}” is saved as lab memory: its questions, answers and the files they cited.</p>
+          <p className="hl">{p.short}’s chat “{chatTitle(chat.id)}” is saved as lab memory: its questions, answers and the files they cited.</p>
         )}
       </div>
       <p className="sv__note">Cortex cites earlier chats like files, so the lab keeps what people learned.</p>

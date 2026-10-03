@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useStore, type Flight } from '../engine/store'
 import { screenOf } from '../engine/world'
 import { Icon, type IconName } from '../ui/Icons'
+import { nameify } from '../lab/people'
 
 const KIND_ICON: Record<string, IconName> = {
   chat: 'chat', hub: 'compass', paper: 'paper', robot: 'robot', github: 'github', drive: 'drive',
@@ -107,7 +108,7 @@ export function Toasts() {
       {toasts.map((t) => (
         <div key={t.id} className={`toast ${t.tone === 'live' ? 'toast--live' : ''}`} style={{ ['--who' as string]: t.who ? `var(--p-${t.who})` : undefined }}>
           {t.who && <i className="toast__dot" />}
-          {t.text}
+          {nameify(t.text)}
         </div>
       ))}
     </div>

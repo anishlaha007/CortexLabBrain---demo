@@ -2,7 +2,7 @@ import { Fragment, type ReactNode } from 'react'
 import { addToTray, chatTitle, openChat, openManifest, openSource, rate, setBranchFrom, toast } from '../engine/actions'
 import { graph } from '../engine/world'
 import { useStore, type Msg, type SourceRef } from '../engine/store'
-import { PEOPLE } from '../lab/people'
+import { PEOPLE, nameify } from '../lab/people'
 import { AiMark, Avatar } from '../ui/Avatar'
 import { Icon, type IconName } from '../ui/Icons'
 import { SlipChart } from './SlipChart'
@@ -47,7 +47,7 @@ const isMono = (r: SourceRef) => {
 function RichText({ text, onCite }: { text: string; onCite: (n: number) => void }) {
   return (
     <>
-      {text.split('\n\n').map((para, i) => (
+      {nameify(text).split('\n\n').map((para, i) => (
         <p key={i}>
           {para.split(/(\[\d+\]|\*\*[^*]+\*\*|\*[^*]+\*)/g).map((part, j) => {
             const cite = part.match(/^\[(\d+)\]$/)
@@ -112,10 +112,10 @@ export function Message({ msg, chatId, index }: Props) {
 
   if (person) {
     return (
-      <article className="msg msg--human" style={{ ['--who' as string]: person.id === 'you' ? 'var(--text)' : person.color }}>
+      <article className="msg msg--human" data-msg={msg.id} style={{ ['--who' as string]: person.id === 'you' ? 'var(--text)' : person.color }}>
         <button type="button" className="port" aria-label="Branch from this question" title="Branch from here" onClick={() => setBranchFrom(chatId, `${person.short}’s question`)} />
         <div className="msg__head"><Avatar id={person.id} size={22} /><b>{person.id === 'you' ? 'You' : person.name}</b><span className="msg__time">{msg.time}</span></div>
-        <p className="msg__text">{msg.text}</p>
+        <p className="msg__text">{nameify(msg.text)}</p>
       </article>
     )
   }
@@ -128,7 +128,7 @@ export function Message({ msg, chatId, index }: Props) {
   }
 
   return (
-    <article className={`msg msg--ai ${phase !== 'done' ? 'is-streaming' : ''}`} data-tour={index === 0 ? 'answer' : undefined}>
+    <article className={`msg msg--ai ${phase !== 'done' ? 'is-streaming' : ''}`} data-msg={msg.id} data-tour={index === 0 ? 'answer' : undefined}>
       <button type="button" className="port port--ai" aria-label="Branch from this answer" title="Branch from here" onClick={() => setBranchFrom(chatId, 'this answer')} />
       <div className="msg__head"><AiMark size={22} /><b>Lab AI</b><span className="msg__time">{msg.time}</span>{msg.background && <span className="badge-bg">General background</span>}</div>
 
@@ -172,7 +172,7 @@ export function Message({ msg, chatId, index }: Props) {
                       <Icon name={iconForRef(ref)} size={14} className="source__icon" />
                       <span className="source__body">
                         <span className={`source__name ${isMono(ref) ? 'mono' : ''}`}>{refName(ref)}</span>
-                        <span className="source__meta">{f.why} · {refMeta(ref)}</span>
+                        <span className="source__meta">{nameify(f.why)} · {refMeta(ref)}</span>
                       </span>
                     </button>
                   </li>
@@ -189,14 +189,14 @@ export function Message({ msg, chatId, index }: Props) {
                     <Icon name={iconForRef(s)} size={14} className="source__icon" />
                     <span className="source__body">
                       <span className={`source__name ${isMono(s) ? 'mono' : ''}`}>{refName(s)}</span>
-                      <span className="source__meta">{s.where} · {refMeta(s)}</span>
+                      <span className="source__meta">{nameify(s.where)} · {refMeta(s)}</span>
                     </span>
                   </button>
                 </li>
               ))}
             </ol>
           ) : null}
-          {msg.memoryNote && <p className="memory-note"><Icon name="sparkle" size={13} /> {msg.memoryNote}</p>}
+          {msg.memoryNote && <p className="memory-note"><Icon name="sparkle" size={13} /> {nameify(msg.memoryNote)}</p>}
           {msg.suggest && <InlineSuggest chatId={chatId} chat={msg.suggest.chat} who={msg.suggest.who} />}
           <div className="answer__foot">
             <span>Searched 5,240 files across 6 sources</span>
