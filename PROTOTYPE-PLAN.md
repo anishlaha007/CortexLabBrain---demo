@@ -1,7 +1,7 @@
 # Cortex Prototype Plan
 
 > A clickable, self-running prototype of Cortex to put in front of researchers, PIs and investors, so we get feedback before building the real thing.
-> Version 0.3 · 2 Oct 2026 · Status: lab confirmed (the CRAB Lab, with fictional teammates). Steps 0 and 1 are done: see [`prototype/`](prototype/).
+> Version 0.5 · 3 Oct 2026 · Status: steps 0–1, 3, 5 and 7 done, and step 4 mostly done. You can zoom into a chat's prompts, teammates act on their own, the question bank has 87 questions, and presenter setup works. See [`prototype/`](prototype/).
 > Built from: [`SPEC.md`](SPEC.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), the UI vision board, the "Oatmeal & Ink" and brown palette cards, and the earlier `lab-brain-demo` prototype and design canvas.
 
 ---
@@ -37,7 +37,7 @@ This is a web prototype that looks and behaves like the finished Cortex but has 
 |------|-----------|----------|---------------|
 | **Explore** | You (presenting) or the viewer | Live walkthroughs while you explain | Default on open |
 | **Tutorial** | The viewer, step by step | Showing every feature. Also shows how a new lab member would be onboarded | A "Take the tour" button. Resumable and skippable |
-| **Presenter setup** | You | Renaming people, picking a theme, setting how busy the lab is | The `,` key or a `?setup` link |
+| **Presenter setup** | You | Renaming the lab and people, recolouring them, setting who's around and how busy the lab is, picking a theme | The `,` key, the You menu, or a `?setup` link (a copied setup link brings your whole setup with it) |
 | **Auto demo** *(later)* | The script | The demo video | The `D` key or a `?demo` link |
 
 ### 1.1 The tutorial (every feature, in order)
@@ -186,13 +186,14 @@ The brain is on the left, with the open chat's node pulsing in your colour. New 
 **Merge selected** (2+ chats → a new chat, CTX-5) also works from the brain.
 
 ### 4.3 Ambient lab life
-A seeded simulation runs teammates through believable behaviour:
-- opening chats and typing questions from the bank
-- AI answers streaming in
-- the occasional branch, pull or new chat
-- people going idle or offline
+A scripted simulation runs teammates through believable behaviour:
+- typing questions live (you see the draft as they type), then the Lab AI's cited answer streaming in, with a new memory dot on the brain
+- branching from a chat, pulling a paper or another chat in, and merging chats
+- the Lab AI linking findings across topics
+- people coming online partway through, and moving between chats
+- someone noticing a chat **you** made: they open it, then pull it into their own work. Only this kind of event sends you a notification
 
-It plays out the same way every time for a given seed. Intensity can be set to calm, busy or off. It never touches the chat you're in unless the tutorial or demo says so.
+It plays out in the same order every time. Intensity can be set to off, calm (about every 8 seconds) or busy (every few seconds) in presenter setup or with `?ambient=`. Kofi stays in the demo chat so the tour always finds him. A teammate may type in a chat you have open, just as in a real shared lab, and asking there starts a branch so nobody is interrupted.
 
 ### 4.4 Two windows (stretch)
 Two browser windows on one laptop stay in sync for real. Be one person in each window and demo it live to someone across the table.
@@ -273,7 +274,7 @@ Examples use the CRAB Lab demo.
 | **Not found** | "What's the lab's budget for next year?" → not found, with the closest files |
 | **Outside Cortex's reach** | "Is the X-ray rig free on Thursday?" → explains that calendars aren't connected yet |
 
-The target is about 60 questions in the bank, with suggested questions always on screen so nobody has to guess.
+The bank has 87 questions across every topic, people, meetings, files, drafts, background and things outside Cortex's reach. Asked inside a chat, answers from that chat's topic win close calls. After each answer, three follow-up questions from the same topic appear, and search lists matching questions as you type. Suggested questions are always on screen so nobody has to guess.
 
 ---
 
@@ -367,11 +368,11 @@ Each step ends with a preview link for you to react to.
 | 0 ✅ | **Lab confirmed.** Its public work is gathered into [`prototype/LAB-INVENTORY.md`](prototype/LAB-INVENTORY.md) | The inventory: anything missing or off-limits? |
 | 1 ✅ | **Style frame:** home and chat in all three themes, with people's colours on the nodes. Built as the real app's foundation, so nothing is thrown away | Look and feel, themes, colours |
 | 2 | Lab data and the world engine | Topics, cast, chats, files |
-| 3 | **Brain:** graph, zoom levels, hover, search, presence pulses, people and live rails | The home screen |
-| 4 | **Chat and split view:** answers, citations, source viewer, tray, drag to pull, suggestions, manifest, the question bank | Asking questions |
-| 5 | **Multiplayer:** cursors, live drafts, branch to collaborate, notifications, merge back, ambient life | The hero feature |
+| 3 ✅ | **Brain:** graph, zoom levels, hover, search, presence pulses, people and live rails, search glow, Lineage, follow mode, drag-out. Zooming into a chat (scroll in, double-click, or Lab › Topic › Chat) unfolds its prompts in order, each with the file it used. Click a prompt to jump to that message | The home screen |
+| 4 ◐ | **Chat and split view:** answers, citations, source viewer, tray, drag to pull, suggestions, manifest, the question bank. *Done:* all of these, with an 87-question bank, topic-aware matching and follow-up questions. *Still to come:* full written conversations for more chats | Asking questions |
+| 5 ✅ | **Multiplayer:** cursors, live drafts, branch to collaborate, notifications, merge back, and ambient life: teammates type, ask, branch, pull and merge on their own, come online, and notice your chats | The hero feature |
 | 6 | Sources, Lab pulse, memory and alumni moments | The supporting story |
-| 7 | **Tutorial**, presenter setup, theme toggle polish | Presenting it |
+| 7 ✅ | **Tutorial**, presenter setup, theme toggle polish. The 14-step tour with “Show me” on each step (now including zooming into a chat), the themes, and presenter setup: lab name, your name, each teammate's name, colour, role and status, how busy the lab is, Mei's cursor, the demo chip, a shareable setup link and reset | Presenting it |
 | 8 | Polish, performance, offline build, deploy | Final |
 | Later | Auto demo + recording, feedback mode, two-window sync | When you're ready |
 

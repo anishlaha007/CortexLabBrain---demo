@@ -4,7 +4,7 @@ export type IconName =
   | 'search' | 'bell' | 'plus' | 'minus' | 'fit' | 'file' | 'branch' | 'merge' | 'pull'
   | 'close' | 'thumbUp' | 'thumbDown' | 'eye' | 'export' | 'more' | 'send' | 'sparkle'
   | 'github' | 'drive' | 'onedrive' | 'labpc' | 'paper' | 'robot' | 'web' | 'chat'
-  | 'check' | 'compass' | 'sun' | 'moon' | 'coffee' | 'arrowLeft'
+  | 'check' | 'compass' | 'sun' | 'moon' | 'coffee' | 'arrowLeft' | 'sliders' | 'link'
 
 const P: Record<IconName, React.ReactNode> = {
   search: <><circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3" /></>,
@@ -38,6 +38,8 @@ const P: Record<IconName, React.ReactNode> = {
   moon: <path d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5Z" />,
   coffee: <><path d="M3 6h8v4a3.5 3.5 0 0 1-3.5 3.5h-1A3.5 3.5 0 0 1 3 10Z" /><path d="M11 7h1a1.8 1.8 0 0 1 0 3.6h-1" /><path d="M6 2.5c-.5.7.5 1.3 0 2M8.5 2.5c-.5.7.5 1.3 0 2" /></>,
   arrowLeft: <><path d="M13 8H3" /><path d="m7 4-4 4 4 4" /></>,
+  sliders: <><path d="M2.5 4.5h6M11.5 4.5h2M2.5 11.5h2M7.5 11.5h6" /><circle cx="10" cy="4.5" r="1.5" /><circle cx="6" cy="11.5" r="1.5" /></>,
+  link: <><path d="M6.8 9.2a2.6 2.6 0 0 0 3.7 0l2.2-2.2a2.6 2.6 0 0 0-3.7-3.7l-.9.9" /><path d="M9.2 6.8a2.6 2.6 0 0 0-3.7 0L3.3 9a2.6 2.6 0 0 0 3.7 3.7l.9-.9" /></>,
 }
 
 export function Icon({ name, size = 16, className }: { name: IconName; size?: number; className?: string }) {

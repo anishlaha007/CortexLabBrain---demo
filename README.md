@@ -16,5 +16,5 @@ A shared AI memory for university research labs. These docs take us from the sco
 **Visual companions**
 - UI designs + architecture diagrams (design canvas): https://claude.ai/artifact/T1z8SrnDKzmTY77tEypfkP. Page "UI designs": lab map with context pulling (interactive), chat with cited answers, "What did the AI see?", sources, component states. Page "Architecture + plan": system diagram, ingestion and answering steps, parallel lanes.
 - Summit pitch deck: https://claude.ai/artifact/SiYFMgHtDXuYufVxzNL4sv
-- **New clickable prototype:** [`prototype/`](prototype/). Open [`prototype/release/cortex-prototype.html`](prototype/release/cortex-prototype.html) offline (see [`PROTOTYPE-PLAN.md`](PROTOTYPE-PLAN.md))
+- **New clickable prototype:** live at **[anishlaha007.github.io/CortexLabBrain---demo](https://anishlaha007.github.io/CortexLabBrain---demo/)**, or open [`prototype/release/cortex-prototype.html`](prototype/release/cortex-prototype.html) offline. Code in [`prototype/`](prototype/), plan in [`PROTOTYPE-PLAN.md`](PROTOTYPE-PLAN.md)
 - Earlier clickable prototype: `../lab-brain-demo/` (live at anishlaha007.github.io/lab-brain-demo)

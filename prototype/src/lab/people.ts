@@ -78,10 +78,50 @@ export const PEOPLE: Record<PersonId, Person> = {
   },
   you: {
     id: 'you', name: 'You', short: 'You', initials: 'YO', role: 'Guest',
-    focus: '', color: '#2B2B2B', onColor: '#F3EDE2', presence: 'live',
+    focus: '', color: '#E6D9C6', onColor: '#2B2B2B', presence: 'live', status: 'Exploring the brain',
   },
 }
 
 export const TEAM_ORDER: PersonId[] = [
   'kofi', 'priya', 'jonah', 'mei', 'ava', 'elena', 'lucas', 'sam', 'noor',
 ]
+
+// ───────── Presenter renames ─────────
+// Scripted text uses the default names. nameify() swaps in whatever the presenter set.
+
+const ORIGINAL: Record<string, { name: string; short: string }> = Object.fromEntries(
+  Object.values(PEOPLE).map((p) => [p.id, { name: p.name, short: p.short }]),
+)
+
+export const DEFAULT_PEOPLE: Record<PersonId, Person> = JSON.parse(JSON.stringify(PEOPLE))
+
+const LAB_NAME = 'Robophysics Lab'
+let swap: Map<string, string> = new Map()
+let pattern: RegExp | null = null
+
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/** Call after PEOPLE or the lab name changes, so nameify() knows what to swap. */
+export function refreshRenames(labName = LAB_NAME) {
+  swap = new Map()
+  for (const id of Object.keys(ORIGINAL) as PersonId[]) {
+    if (id === 'you') continue
+    const was = ORIGINAL[id]
+    const now = PEOPLE[id]
+    if (was.name !== now.name) swap.set(was.name, now.name)
+    if (was.short !== now.short) swap.set(was.short, now.short)
+  }
+  if (labName && labName !== LAB_NAME) swap.set(LAB_NAME, labName)
+  // One pass with the longest names first, so swapped names never get swapped twice.
+  const keys = [...swap.keys()].sort((a, b) => b.length - a.length)
+  pattern = keys.length ? new RegExp(`\\b(${keys.map(esc).join('|')})\\b`, 'g') : null
+}
+
+export function nameify(text: string) {
+  return pattern ? text.replace(pattern, (m) => swap.get(m) ?? m) : text
+}
+
+export function initialsOf(name: string) {
+  const parts = name.replace(/^(Prof\.|Dr\.)\s+/, '').split(/\s+/).filter(Boolean)
+  return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : parts[0]?.[1] ?? '')).toUpperCase()
+}
